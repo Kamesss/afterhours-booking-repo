@@ -1,7 +1,12 @@
 {
-  "name": "afterhours-booking-worker",
-  "main": "src/index.ts",
-  "compatibility_date": "2026-08-21",
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "afterhours_club_app",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
   "d1_databases": [
     {
       "binding": "DB",
