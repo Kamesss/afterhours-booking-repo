@@ -8,6 +8,14 @@ import {
   User,
   UserRole
 } from '../types';
+import {
+  SEED_USERS,
+  SEED_CLUBS,
+  SEED_TABLE_TYPES,
+  SEED_CLUB_TABLES,
+  SEED_BOOKINGS,
+  SEED_GUESTLIST
+} from './seedData';
 
 const STORAGE_KEYS = {
   USERS: 'afterhours_users_v1',
@@ -61,12 +69,12 @@ class AfterHoursDatabase {
   public isLoadedFromD1: boolean = false;
 
   constructor() {
-    this.users = safeLoad<User[]>(STORAGE_KEYS.USERS, []);
-    this.clubs = safeLoad<Club[]>(STORAGE_KEYS.CLUBS, []);
-    this.tableTypes = safeLoad<TableType[]>(STORAGE_KEYS.TABLE_TYPES, []);
-    this.clubTables = safeLoad<ClubTable[]>(STORAGE_KEYS.CLUB_TABLES, []);
-    this.bookings = safeLoad<Booking[]>(STORAGE_KEYS.BOOKINGS, []);
-    this.guestList = safeLoad<GuestListEntry[]>(STORAGE_KEYS.GUESTLIST, []);
+    this.users = safeLoad<User[]>(STORAGE_KEYS.USERS, SEED_USERS);
+    this.clubs = safeLoad<Club[]>(STORAGE_KEYS.CLUBS, SEED_CLUBS);
+    this.tableTypes = safeLoad<TableType[]>(STORAGE_KEYS.TABLE_TYPES, SEED_TABLE_TYPES);
+    this.clubTables = safeLoad<ClubTable[]>(STORAGE_KEYS.CLUB_TABLES, SEED_CLUB_TABLES);
+    this.bookings = safeLoad<Booking[]>(STORAGE_KEYS.BOOKINGS, SEED_BOOKINGS);
+    this.guestList = safeLoad<GuestListEntry[]>(STORAGE_KEYS.GUESTLIST, SEED_GUESTLIST);
     this.currentUser = safeLoad<User>(STORAGE_KEYS.CURRENT_USER, DEFAULT_USER);
 
     // Fetch live tables directly from Cloudflare D1

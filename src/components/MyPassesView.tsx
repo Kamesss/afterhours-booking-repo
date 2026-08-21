@@ -11,8 +11,8 @@ interface MyPassesViewProps {
 
 export const MyPassesView: React.FC<MyPassesViewProps> = ({ onExploreClubs }) => {
   const currentUser = db.getCurrentUser();
-  const bookings = db.getUserBookings(currentUser.id);
-  const guestListEntries = db.getUserGuestList(currentUser.id);
+  const bookings = currentUser?.id ? db.getUserBookings(currentUser.id) : [];
+  const guestListEntries = currentUser?.id ? db.getUserGuestList(currentUser.id) : [];
 
   const [activePassItem, setActivePassItem] = useState<{
     item: Booking | GuestListEntry;

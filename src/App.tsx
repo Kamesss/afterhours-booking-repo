@@ -48,8 +48,8 @@ export default function App() {
   const clubs = db.getClubs();
 
   // User's active passes count
-  const userBookings = db.getUserBookings(currentUser.id);
-  const userGuestList = db.getUserGuestList(currentUser.id);
+  const userBookings = currentUser?.id ? db.getUserBookings(currentUser.id) : [];
+  const userGuestList = currentUser?.id ? db.getUserGuestList(currentUser.id) : [];
   const totalPasses = userBookings.length + userGuestList.length;
 
   const handleSwitchUser = (role: UserRole) => {

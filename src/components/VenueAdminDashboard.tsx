@@ -6,8 +6,18 @@ import { Store, DollarSign, Users, CheckCircle2, XCircle, TrendingUp, Calendar, 
 
 export const VenueAdminDashboard: React.FC = () => {
   const clubs = db.getClubs();
-  const [selectedClubId, setSelectedClubId] = useState<string>(clubs[0].id);
-  const selectedClub = db.getClubById(selectedClubId) || clubs[0];
+  const [selectedClubId, setSelectedClubId] = useState<string>(() => clubs[0]?.id || 'clb_sentral');
+  const selectedClub = db.getClubById(selectedClubId) || clubs[0] || {
+    id: 'clb_sentral',
+    owner_id: 'usr_owner_sentral',
+    name: 'Sentral Bar & Lounge',
+    slug: 'sentral-bar-lounge',
+    address: 'Nivel Hills, Lahug, Cebu City',
+    min_age: 18,
+    is_active: 1,
+    created_at: new Date().toISOString(),
+    area: 'Lahug / Nivel Hills',
+  };
 
   const todayStr = new Date().toISOString().split('T')[0];
   const [dateFilter, setDateFilter] = useState<string>(todayStr);
