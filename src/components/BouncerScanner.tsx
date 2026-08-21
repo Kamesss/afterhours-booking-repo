@@ -17,9 +17,9 @@ export const BouncerScanner: React.FC = () => {
   const todayBookings = db.getBookings(undefined, todayStr);
   const todayGuestlist = db.getGuestList(undefined, todayStr);
 
-  const handleVerify = (code: string) => {
+  const handleVerify = async (code: string) => {
     if (!code.trim()) return;
-    const res = db.verifyAndCheckIn(code.trim());
+    const res = await db.verifyAndCheckIn(code.trim());
     setScanResult(res);
   };
 

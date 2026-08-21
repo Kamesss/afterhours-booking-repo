@@ -74,7 +74,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const discountRate = appliedPromo ? (appliedPromo.discount_deposit_percent / 100) : 0;
   const finalDeposit = Math.round(rawDeposit * (1 - discountRate));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTable || !selectedTableType) {
       setErrorMessage('Please select a table on the floor plan above.');
@@ -89,8 +89,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     setIsSubmitting(true);
     setErrorMessage('');
 
-    setTimeout(() => {
-      const res = db.createBooking({
+    try {
+      const res = await db.createBooking({
         club_id: club.id,
         table_id: selectedTable.id,
         user_id: currentUser.id,
@@ -116,7 +116,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
       firePassConfetti();
       onBookingSuccess(res.booking);
-    }, 600);
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMessage(err.message || 'Error creating booking in database.');
+    }
   };
 
   return (

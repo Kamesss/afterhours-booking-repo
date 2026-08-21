@@ -30,7 +30,7 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!guestName.trim() || !guestEmail.trim()) {
       setError('Please provide your name and email for the door list.');
@@ -40,8 +40,8 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
     setIsSubmitting(true);
     setError('');
 
-    setTimeout(() => {
-      const res = db.joinGuestList({
+    try {
+      const res = await db.joinGuestList({
         club_id: club.id,
         user_id: currentUser.id,
         event_date: eventDate,
@@ -61,7 +61,10 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
 
       firePassConfetti();
       onSuccess(res.entry);
-    }, 500);
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setError(err.message || 'Failed to generate guest list pass.');
+    }
   };
 
   return (

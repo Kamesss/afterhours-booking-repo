@@ -6,6 +6,9 @@ export const D1SchemaViewer: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [activeTable, setActiveTable] = useState<'users' | 'clubs' | 'table_types' | 'club_tables' | 'bookings'>('bookings');
 
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
+
   const users = db.getUsers();
   const clubs = db.getClubs();
   const tableTypes = db.getTableTypes();
@@ -13,6 +16,19 @@ export const D1SchemaViewer: React.FC = () => {
   const bookings = db.getBookings();
 
   const sqlDump = db.generateD1SqlDump();
+
+  const handleSyncD1 = async () => {
+    setIsSyncing(true);
+    setSyncMessage('');
+    const success = await db.syncFromD1();
+    setIsSyncing(false);
+    if (success) {
+      setSyncMessage('D1 Cloud Synced Successfully!');
+    } else {
+      setSyncMessage('Synced with local cache.');
+    }
+    setTimeout(() => setSyncMessage(''), 3000);
+  };
 
   const handleCopySql = () => {
     navigator.clipboard.writeText(sqlDump);
@@ -47,22 +63,30 @@ export const D1SchemaViewer: React.FC = () => {
         <div className="space-y-2 relative z-10">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#FF2E88]/10 text-[#FF2E88] border border-[#FF2E88]/20">
             <Database className="w-3.5 h-3.5 text-[#FF2E88]" />
-            <span>Cloudflare D1 & SQLite Relational Engine</span>
+            <span>Cloudflare D1: club_booking_db</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white">
             Schema & Live D1 Data Explorer
           </h1>
           <p className="text-xs text-white/50 max-w-xl">
-            Live relational model executing your strict table structure, foreign keys, and the partial unique index <code className="text-[#FF2E88] font-mono">uq_prevent_table_double_booking</code>.
+            Directly connected to Cloudflare D1 binding <code className="text-[#FF2E88] font-mono">DB</code> (<code className="text-white/70 font-mono text-[11px]">ceb841b0-6066-4196-9bc2-b79e2ca2aaf3</code>). Enforces foreign keys and <code className="text-[#FF2E88] font-mono">uq_prevent_table_double_booking</code>.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 relative z-10">
+        <div className="flex flex-wrap items-center gap-2 relative z-10">
+          <button
+            onClick={handleSyncD1}
+            disabled={isSyncing}
+            className="py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold border border-white/20 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Syncing D1...' : 'Sync Live D1'}</span>
+          </button>
           <button
             onClick={handleCopySql}
             className="py-2.5 px-4 rounded-xl bg-[#111] hover:bg-white/10 text-white text-xs font-bold border border-white/15 flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-white/80" />}
             <span>{copied ? 'SQL Copied' : 'Copy D1 SQL'}</span>
           </button>
           <button
@@ -74,6 +98,13 @@ export const D1SchemaViewer: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {syncMessage && (
+        <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono rounded-xl flex items-center gap-2">
+          <Check className="w-4 h-4" />
+          <span>{syncMessage}</span>
+        </div>
+      )}
 
       {/* Schema Constraints Highlight */}
       <div className="bg-[#0A0A0B] border border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

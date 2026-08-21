@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from './lib/storage';
 import { Club, Booking, GuestListEntry, User, UserRole } from './types';
 import { Header } from './components/Header';
@@ -16,8 +16,18 @@ import { MyPassesView } from './components/MyPassesView';
 import { Sparkles, MapPin, ShieldCheck, Flame, Compass, MessageSquare } from 'lucide-react';
 
 export default function App() {
+  const [, setDbTick] = useState<number>(0);
   const [currentUser, setCurrentUser] = useState<User>(db.getCurrentUser());
   const [activeTab, setActiveTab] = useState<'explore' | 'passes' | 'admin' | 'scanner' | 'schema'>('explore');
+
+  // Subscribe to live database updates from Cloudflare D1
+  useEffect(() => {
+    const unsubscribe = db.subscribe(() => {
+      setDbTick(prev => prev + 1);
+      setCurrentUser(db.getCurrentUser());
+    });
+    return unsubscribe;
+  }, []);
 
   // Filters
   const [selectedDistrict, setSelectedDistrict] = useState<string>('All Cebu Districts');
