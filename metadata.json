@@ -1,0 +1,6 @@
+{
+  "name": "AfterHours - Cebu Nightlife Ambassador & Bookings",
+  "description": "Automated club ambassador for Cebu City nightlife venues handling instant guest list entry, interactive table reservations with deposits, live floor maps, promoter commission tracking, and club admin management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

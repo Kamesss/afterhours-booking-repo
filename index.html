@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AfterHours - Cebu Nightlife Ambassador & VIP Booking</title>
+    <meta name="description" content="Automated club ambassador for Cebu City nightlife venues handling instant guest list entry, interactive table reservations with deposits, live floor maps, and commission tracking." />
+    <script>
+      // Guard against scripts/polyfills trying to assign to window.fetch when it has only a getter in iframe environments
+      (function() {
+        try {
+          var nativeFetch = typeof window !== 'undefined' ? window.fetch : null;
+          var _currentFetch = nativeFetch ? nativeFetch.bind(window) : null;
+          if (typeof window !== 'undefined') {
+            try {
+              Object.defineProperty(window, 'fetch', {
+                get: function() { return _currentFetch; },
+                set: function(fn) { _currentFetch = fn; },
+                configurable: true,
+                enumerable: true
+              });
+            } catch (e) {}
+          }
+          if (typeof Window !== 'undefined' && Window.prototype) {
+            try {
+              Object.defineProperty(Window.prototype, 'fetch', {
+                get: function() { return _currentFetch; },
+                set: function(fn) { _currentFetch = fn; },
+                configurable: true,
+                enumerable: true
+              });
+            } catch (e) {}
+          }
+        } catch (err) {}
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-zinc-950 text-zinc-100 antialiased selection:bg-violet-600 selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
