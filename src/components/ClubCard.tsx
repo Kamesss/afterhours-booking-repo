@@ -22,7 +22,7 @@ export const ClubCard: React.FC<ClubCardProps> = ({
       {/* Image Banner */}
       <div className="relative h-48 sm:h-56 w-full overflow-hidden cursor-pointer" onClick={() => onSelectClub(club)}>
         <img
-          src={club.hero_image}
+          src={club.hero_image || 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=1200&q=80'}
           alt={club.name}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           referrerPolicy="no-referrer"
@@ -33,7 +33,7 @@ export const ClubCard: React.FC<ClubCardProps> = ({
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[#050505]/80 backdrop-blur-md text-[#FF2E88] border border-[#FF2E88]/30 flex items-center gap-1">
             <MapPin className="w-3 h-3 text-[#FF2E88]" />
-            {club.area}
+            {club.area || 'Cebu City'}
           </span>
           {club.featured && (
             <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-zinc-950 shadow-[0_0_10px_rgba(245,158,11,0.4)] flex items-center gap-1">
@@ -51,12 +51,12 @@ export const ClubCard: React.FC<ClubCardProps> = ({
             </h3>
             <p className="text-xs text-white/60 flex items-center gap-1.5 mt-0.5">
               <Clock className="w-3 h-3 text-amber-400" />
-              <span>Peak: {club.peak_hours}</span>
+              <span>Peak: {club.peak_hours || '12:00 AM – 3:30 AM'}</span>
             </p>
           </div>
           <div className="flex items-center space-x-1 bg-black/80 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 text-amber-400 font-bold text-xs">
             <Star className="w-3.5 h-3.5 fill-amber-400" />
-            <span>{club.curator_rating.toFixed(1)}</span>
+            <span>{(club.curator_rating || 4.8).toFixed(1)}</span>
           </div>
         </div>
       </div>
@@ -67,11 +67,11 @@ export const ClubCard: React.FC<ClubCardProps> = ({
         {/* Description & Music tags */}
         <div className="space-y-2.5">
           <p className="text-xs text-white/50 line-clamp-2 leading-relaxed">
-            {club.description}
+            {club.description || 'Premium Cebu nightlife destination.'}
           </p>
 
           <div className="flex flex-wrap gap-1.5 pt-0.5">
-            {club.music_genres.map((genre) => (
+            {(club.music_genres || ['EDM', 'Commercial', 'Hip-Hop']).map((genre) => (
               <span
                 key={genre}
                 className="px-2 py-0.5 rounded-lg text-[10px] font-medium bg-white/5 text-white/70 border border-white/10"
@@ -89,7 +89,7 @@ export const ClubCard: React.FC<ClubCardProps> = ({
             <span>Automated Ambassador Perk</span>
           </div>
           <p className="text-[11px] text-white/80 font-medium">
-            {club.ambassador_perks[0]}
+            {club.ambassador_perks?.[0] || '⚡ Express VIP Door Entry with Ambassador Pass'}
           </p>
         </div>
 
@@ -98,7 +98,7 @@ export const ClubCard: React.FC<ClubCardProps> = ({
           <div className="flex items-center justify-between text-xs">
             <span className="text-white/40">Standard Door Cover:</span>
             <span className="font-semibold text-white">
-              {club.cover_fee_cents === 0 ? 'Free' : formatPeso(club.cover_fee_cents)}
+              {!club.cover_fee_cents || club.cover_fee_cents === 0 ? 'Free' : formatPeso(club.cover_fee_cents)}
               <span className="text-[10px] text-emerald-400 ml-1">(Free on Guestlist)</span>
             </span>
           </div>

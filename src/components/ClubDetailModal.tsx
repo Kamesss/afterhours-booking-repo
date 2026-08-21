@@ -31,7 +31,7 @@ export const ClubDetailModal: React.FC<ClubDetailModalProps> = ({
         {/* Modal Hero Banner */}
         <div className="relative h-56 sm:h-72 w-full shrink-0">
           <img
-            src={club.hero_image}
+            src={club.hero_image || 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=1200&q=80'}
             alt={club.name}
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
@@ -51,11 +51,11 @@ export const ClubDetailModal: React.FC<ClubDetailModalProps> = ({
             <div>
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#FF2E88] text-white shadow-[0_0_10px_#FF2E88]">
-                  {club.area}
+                  {club.area || 'Cebu City'}
                 </span>
                 <span className="flex items-center gap-1 bg-black/80 px-2.5 py-0.5 rounded-full text-xs text-amber-400 font-bold border border-white/10">
                   <Star className="w-3.5 h-3.5 fill-amber-400" />
-                  {club.curator_rating.toFixed(1)} Curator Score
+                  {(club.curator_rating || 4.8).toFixed(1)} Curator Score
                 </span>
               </div>
               <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
@@ -132,7 +132,7 @@ export const ClubDetailModal: React.FC<ClubDetailModalProps> = ({
                   About the Venue
                 </h3>
                 <p className="text-sm text-white/80 leading-relaxed">
-                  {club.description}
+                  {club.description || 'Exclusive Cebu nightlife venue.'}
                 </p>
               </div>
 
@@ -143,7 +143,7 @@ export const ClubDetailModal: React.FC<ClubDetailModalProps> = ({
                   <span>Exclusive AfterHours Ambassador Privileges</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {club.ambassador_perks.map((perk, idx) => (
+                  {(club.ambassador_perks || ['⚡ Express VIP Door Entry with Ambassador Pass', '🍸 Special Ambassador Bottle Service Privileges']).map((perk, idx) => (
                     <div key={idx} className="flex items-start gap-2 text-xs text-white/90 bg-black/60 p-2.5 rounded-xl border border-white/10">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                       <span>{perk}</span>
@@ -160,7 +160,7 @@ export const ClubDetailModal: React.FC<ClubDetailModalProps> = ({
                     <span>Music & Sound</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {club.music_genres.map(g => (
+                    {(club.music_genres || ['EDM', 'Commercial', 'Hip-Hop']).map(g => (
                       <span key={g} className="px-2 py-0.5 rounded-lg text-xs bg-white/5 text-white/80 border border-white/10">
                         {g}
                       </span>
@@ -173,8 +173,8 @@ export const ClubDetailModal: React.FC<ClubDetailModalProps> = ({
                     <Clock className="w-4 h-4 text-amber-400" />
                     <span>Operating Hours</span>
                   </div>
-                  <p className="text-xs text-white/80">{club.opening_hours}</p>
-                  <p className="text-[11px] text-amber-400 font-medium">Peak Energy: {club.peak_hours}</p>
+                  <p className="text-xs text-white/80">{club.opening_hours || 'Wed - Sun | 10:00 PM – 5:00 AM'}</p>
+                  <p className="text-[11px] text-amber-400 font-medium">Peak Energy: {club.peak_hours || '12:30 AM – 3:30 AM'}</p>
                 </div>
 
                 <div className="p-4 bg-gradient-to-br from-[#111] to-[#050505] border border-white/10 rounded-2xl space-y-2 sm:col-span-2">

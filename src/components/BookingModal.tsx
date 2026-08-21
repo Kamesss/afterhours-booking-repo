@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Club, ClubTable, TableType, Booking } from '../types';
+import { Club, ClubTable, TableType, Booking, DEFAULT_PROMOS } from '../types';
 import { db } from '../lib/storage';
 import { formatPeso, firePassConfetti } from '../lib/formatters';
-import { AMBASSADOR_PROMOS } from '../data/initialData';
 import { InteractiveFloorPlan } from './InteractiveFloorPlan';
 import { X, Calendar, Clock, Users, Sparkles, Check, CreditCard, ShieldCheck, Tag, AlertCircle } from 'lucide-react';
 
@@ -37,7 +36,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   // Ambassador Promo Code
   const [promoCodeInput, setPromoCodeInput] = useState<string>('CEBUVIP');
-  const [appliedPromo, setAppliedPromo] = useState<typeof AMBASSADOR_PROMOS[0] | null>(AMBASSADOR_PROMOS[0]);
+  const [appliedPromo, setAppliedPromo] = useState<typeof DEFAULT_PROMOS[0] | null>(DEFAULT_PROMOS[0]);
   const [promoError, setPromoError] = useState<string>('');
 
   // Payment Method
@@ -49,7 +48,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   const handleApplyPromo = () => {
     const code = promoCodeInput.trim().toUpperCase();
-    const found = AMBASSADOR_PROMOS.find(p => p.code === code && (!p.club_id || p.club_id === club.id));
+    const found = DEFAULT_PROMOS.find(p => p.code === code && (!p.club_id || p.club_id === club.id));
     if (found) {
       setAppliedPromo(found);
       setPromoError('');

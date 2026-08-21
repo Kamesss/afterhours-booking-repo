@@ -47,9 +47,9 @@ export const D1SchemaViewer: React.FC = () => {
   };
 
   const handleReset = () => {
-    if (confirm('Reset database to default seed state? This will restore sample bookings.')) {
-      db.resetToDefaults();
-      window.location.reload();
+    if (confirm('Clear local database cache and re-sync fresh records directly from Cloudflare D1?')) {
+      db.clearLocalCache();
+      handleSyncD1();
     }
   };
 
@@ -127,7 +127,7 @@ export const D1SchemaViewer: React.FC = () => {
           className="text-xs px-3 py-1.5 rounded-lg bg-[#111] hover:bg-white/10 text-white/50 hover:text-white border border-white/10 flex items-center gap-1 shrink-0 cursor-pointer"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          <span>Reset Sample Data</span>
+          <span>Clear Cache & Sync D1</span>
         </button>
       </div>
 
