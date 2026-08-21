@@ -1,340 +1,345 @@
-import { Club, TableType, ClubTable, Booking, GuestListEntry, User } from '../types';
+// ============================================================================
+// AFTERHOURS CEBU - CLOUDFLARE D1 SEED DATA DEFINITIONS (Derived from seed.sql)
+// ============================================================================
+import { User, Venue, TableItem, TableBooking, GuestlistEntry, LedgerTransaction, LedgerPosting } from '../types';
 
 export const SEED_USERS: User[] = [
+  // Clubgoers
   {
-    id: 'usr_guest1',
-    name: 'Marco Villamor',
-    email: 'marco.cebu@gmail.com',
-    phone: '+63 917 555 1201',
-    role: 'user',
-    created_at: '2026-01-10 18:00:00',
+    id: 'usr_c01',
+    email: 'paolo.mendoza@gmail.com',
+    hashed_password: '$2b$12$eX4mP1eH4sH3dPWdF0rT3sT1nGCebU01',
+    full_name: 'Paolo Mendoza',
+    phone_number: '+63 917 849 2011',
+    role: 'CUSTOMER',
+    promoter_code: null,
+    is_active: 1,
+    created_at: '2026-08-20T10:00:00Z',
+    updated_at: '2026-08-20T10:00:00Z'
   },
   {
-    id: 'usr_owner_sentral',
-    name: 'Gianluca Rossi (Sentral GM)',
-    email: 'gm@sentralcebu.ph',
-    phone: '+63 918 888 2020',
-    role: 'club_admin',
-    created_at: '2026-01-01 10:00:00',
+    id: 'usr_c02',
+    email: 'bea.villanueva@yahoo.com',
+    hashed_password: '$2b$12$eX4mP1eH4sH3dPWdF0rT3sT1nGCebU02',
+    full_name: 'Bea Villanueva',
+    phone_number: '+63 918 331 4092',
+    role: 'CUSTOMER',
+    promoter_code: null,
+    is_active: 1,
+    created_at: '2026-08-20T11:00:00Z',
+    updated_at: '2026-08-20T11:00:00Z'
   },
   {
-    id: 'usr_superadmin',
-    name: 'AfterHours Cebu Admin',
-    email: 'curator@afterhours.ph',
-    phone: '+63 917 000 9999',
-    role: 'superadmin',
-    created_at: '2026-01-01 00:00:00',
+    id: 'usr_c03',
+    email: 'miguel.tan@gmail.com',
+    hashed_password: '$2b$12$eX4mP1eH4sH3dPWdF0rT3sT1nGCebU03',
+    full_name: 'Miguel Tan',
+    phone_number: '+63 920 554 9912',
+    role: 'CUSTOMER',
+    promoter_code: null,
+    is_active: 1,
+    created_at: '2026-08-20T12:00:00Z',
+    updated_at: '2026-08-20T12:00:00Z'
   },
+
+  // Promoters with attribution referral codes
+  {
+    id: 'usr_p01',
+    email: 'carlo.vip@afterhours.ph',
+    hashed_password: '$2b$12$eX4mP1eH4sH3dPWdF0rT3sT1nGCebU04',
+    full_name: 'Carlo De Leon',
+    phone_number: '+63 917 552 1199',
+    role: 'PROMOTER',
+    promoter_code: 'CEBU_VIP_CARLO',
+    is_active: 1,
+    created_at: '2026-08-15T08:00:00Z',
+    updated_at: '2026-08-15T08:00:00Z'
+  },
+  {
+    id: 'usr_p02',
+    email: 'nikki.nights@afterhours.ph',
+    hashed_password: '$2b$12$eX4mP1eH4sH3dPWdF0rT3sT1nGCebU05',
+    full_name: 'Nikki Alcantara',
+    phone_number: '+63 922 884 1002',
+    role: 'PROMOTER',
+    promoter_code: 'NIKKI_NIGHTS',
+    is_active: 1,
+    created_at: '2026-08-15T09:00:00Z',
+    updated_at: '2026-08-15T09:00:00Z'
+  },
+
+  // Venue Staff & Management
+  {
+    id: 'usr_s01',
+    email: 'door.kazmik@kazmik.ph',
+    hashed_password: '$2b$12$eX4mP1eH4sH3dPWdF0rT3sT1nGCebU06',
+    full_name: 'Kazmik Door Bouncer 1',
+    phone_number: '+63 917 000 1122',
+    role: 'VENUE_STAFF',
+    promoter_code: null,
+    is_active: 1,
+    created_at: '2026-08-10T08:00:00Z',
+    updated_at: '2026-08-10T08:00:00Z'
+  },
+  {
+    id: 'usr_m01',
+    email: 'manager@trademark.ph',
+    hashed_password: '$2b$12$eX4mP1eH4sH3dPWdF0rT3sT1nGCebU07',
+    full_name: 'Anton Delgado',
+    phone_number: '+63 917 999 8877',
+    role: 'VENUE_MANAGER',
+    promoter_code: null,
+    is_active: 1,
+    created_at: '2026-08-10T08:00:00Z',
+    updated_at: '2026-08-10T08:00:00Z'
+  },
+  {
+    id: 'usr_adm',
+    email: 'ops@afterhours.ph',
+    hashed_password: '$2b$12$eX4mP1eH4sH3dPWdF0rT3sT1nGCebU08',
+    full_name: 'Platform Superadmin',
+    phone_number: '+63 917 111 0000',
+    role: 'ADMIN',
+    promoter_code: null,
+    is_active: 1,
+    created_at: '2026-08-01T00:00:00Z',
+    updated_at: '2026-08-01T00:00:00Z'
+  }
 ];
 
-export const SEED_CLUBS: Club[] = [
+export const SEED_VENUES: Venue[] = [
   {
-    id: 'clb_sentral',
-    owner_id: 'usr_owner_sentral',
-    name: 'Sentral Bar & Lounge',
-    slug: 'sentral-bar-lounge',
-    description: 'Cebu’s longest-standing iconic high-energy nightlife venue. Featuring international guest DJs, world-class Funktion-One acoustics, VIP mezzanine booths, and Cebu’s top festival crowds.',
-    address: 'Nivel Hills, Lahug, Cebu City',
-    min_age: 18,
-    dress_code: 'Smart Casual (No slippers or jerseys)',
+    id: 'ven_kazmik',
+    slug: 'kazmik-cebu',
+    name: 'Kazmik Club',
+    tagline: 'Cebu’s Premiere High-Energy Multi-Level Megaclub',
+    address: 'Skyrise 4B Ground Floor, IT Park, Lahug, Cebu City',
+    open_time: '21:00',
+    close_time: '05:00',
+    guestlist_cutoff_time: '23:30',
+    max_capacity: 750,
+    current_occupancy: 342,
     is_active: 1,
-    created_at: '2026-01-01 00:00:00',
-    area: 'Lahug / Nivel Hills',
-    cover_fee_cents: 50000,
-    curator_rating: 4.9,
-    featured: true,
-    music_genres: ['EDM', 'Commercial', 'Festival Anthems', 'Tech House'],
-    vibe_tags: ['High-Energy', 'Main Room', 'VIP Bottle Service', 'Celebrity Crowd'],
-    hero_image: 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=1200&q=80',
-    gallery: [
-      'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1574391884720-bbc3740c59d1?auto=format&fit=crop&w=800&q=80',
-    ],
-    opening_hours: 'Wed - Sun | 10:00 PM – 5:00 AM',
-    peak_hours: '12:30 AM – 3:30 AM',
-    ambassador_perks: [
-      '⚡ Express VIP Skip-the-Line Door Access',
-      '🍸 Complimentary Round of Tequila Shots for Table Bookings',
-      '🎉 Sparkler Presentation with Bottle Orders'
-    ],
+    image_url: 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=1200&q=80',
+    music_genres: ['EDM', 'Hard Dance', 'Commercial House', 'Tech Trance']
   },
   {
-    id: 'clb_trademark',
-    owner_id: 'usr_owner_sentral',
-    name: 'Trademark Cebu',
+    id: 'ven_trademark',
     slug: 'trademark-cebu',
-    description: 'The underground epicenter for Hip-Hop, Afrobeats, and R&B enthusiasts. Renowned for curated craft mixology, intimate booth layouts, and after-hours baseline sets.',
+    name: 'Trademark Cebu',
+    tagline: 'Cebu’s Iconic Hip-Hop, R&B & Urban Lifestyle Lounge',
     address: '88th Avenue, Gov. M. Cuenco Ave, Banilad, Cebu City',
-    min_age: 18,
-    dress_code: 'Fashion Forward / Smart Casual',
+    open_time: '21:30',
+    close_time: '04:30',
+    guestlist_cutoff_time: '23:45',
+    max_capacity: 400,
+    current_occupancy: 188,
     is_active: 1,
-    created_at: '2026-01-02 00:00:00',
-    area: 'Banilad / 88th Ave',
-    cover_fee_cents: 40000,
-    curator_rating: 4.8,
-    featured: true,
-    music_genres: ['Hip-Hop', 'RnB', 'Afrobeats', 'Throwback Hits'],
-    vibe_tags: ['Intimate', 'Craft Cocktails', 'Urban Chic', 'Late Night'],
-    hero_image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80',
-    gallery: [
-      'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=800&q=80'
-    ],
-    opening_hours: 'Thu - Sat | 9:30 PM – 4:30 AM',
-    peak_hours: '12:00 AM – 3:00 AM',
-    ambassador_perks: [
-      '⚡ Free Ambassador Door Entry (Before 11:30 PM)',
-      '🍹 15% Off VIP Table Upfront Deposit',
-      '🥃 Welcome Cocktail Punch Bowl for Table Guests'
-    ],
+    image_url: 'https://images.unsplash.com/photo-1545128485-c400e7702796?auto=format&fit=crop&w=1200&q=80',
+    music_genres: ['Hip-Hop', 'Trap', 'Afrobeats', 'RnB Classics']
   },
   {
-    id: 'clb_loft',
-    owner_id: 'usr_owner_sentral',
-    name: 'Loft Sky Bar & Nightclub',
-    slug: 'loft-sky-bar',
-    description: 'Open-air panoramic rooftop sky club perched high above IT Park. Features sunset warmups, deep house sessions, and VIP cabanas under the Cebu city stars.',
-    address: 'IT Park Sky Tower, Lahug, Cebu City',
-    min_age: 20,
-    dress_code: 'Upscale / Cocktail Attire',
+    id: 'ven_morals',
+    slug: 'morals-and-malice',
+    name: 'Morals & Malice',
+    tagline: 'Artisanal Cocktail Lounge & Botanical Speakeasy',
+    address: '2/F BTC Gourmet Court, Gov. M. Cuenco Ave, Banilad, Cebu City',
+    open_time: '18:00',
+    close_time: '03:00',
+    guestlist_cutoff_time: '22:30',
+    max_capacity: 160,
+    current_occupancy: 89,
     is_active: 1,
-    created_at: '2026-01-03 00:00:00',
-    area: 'Cebu IT Park',
-    cover_fee_cents: 60000,
-    curator_rating: 4.9,
-    featured: true,
-    music_genres: ['Deep House', 'Melodic Techno', 'Nu-Disco', 'Afro House'],
-    vibe_tags: ['Rooftop Skyline', 'Sunset Cocktails', 'Open Air', 'Luxury'],
-    hero_image: 'https://images.unsplash.com/photo-1570872626485-d8ffea69f463?auto=format&fit=crop&w=1200&q=80',
-    gallery: [
-      'https://images.unsplash.com/photo-1545128485-c400e7702796?auto=format&fit=crop&w=800&q=80'
-    ],
-    opening_hours: 'Tue - Sun | 8:00 PM – 4:00 AM',
-    peak_hours: '11:00 PM – 2:30 AM',
-    ambassador_perks: [
-      '⚡ Reserved VIP Skyline Cabana Priority',
-      '🥂 Complimentary Welcome Prosecco Flutes for Ladies',
-      '✨ Dedicated Host & Butler Service'
-    ],
+    image_url: 'https://images.unsplash.com/photo-1572116469696-31de0f17cc34?auto=format&fit=crop&w=1200&q=80',
+    music_genres: ['Deep House', 'Indie Dance', 'Nu Disco', 'Vinyl Lounge']
   },
   {
-    id: 'clb_verified',
-    owner_id: 'usr_owner_sentral',
-    name: 'Verified Lounge & Club',
-    slug: 'verified-lounge-club',
-    description: 'Ultra-modern boutique lounge featuring immersive 360-degree LED ceilings, premium Japanese whiskey collections, and curated VIP cocktail service.',
-    address: 'Bonifacio District, F. Cabahug St, Kasambagan, Cebu City',
-    min_age: 18,
-    dress_code: 'Smart Casual (Collared shirts / Stylish dress)',
+    id: 'ven_verified',
+    slug: 'verified-lounge-cebu',
+    name: 'Verified Lounge',
+    tagline: 'Cebu Business Park’s Premier Open-Air Roofdeck Lounge',
+    address: 'Roofdeck Tower 2, Cebu Business Park, Cebu City',
+    open_time: '17:00',
+    close_time: '03:30',
+    guestlist_cutoff_time: '22:00',
+    max_capacity: 300,
+    current_occupancy: 124,
     is_active: 1,
-    created_at: '2026-01-04 00:00:00',
-    area: 'Bonifacio District',
-    cover_fee_cents: 35000,
-    curator_rating: 4.7,
-    featured: false,
-    music_genres: ['Tech House', 'Nu-Disco', 'Open Format'],
-    vibe_tags: ['LED Visuals', 'Boutique Lounge', 'Craft Spirits'],
-    hero_image: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=1200&q=80',
-    gallery: [],
-    opening_hours: 'Wed - Sun | 9:00 PM – 4:00 AM',
-    peak_hours: '11:30 PM – 2:30 AM',
-    ambassador_perks: [
-      '⚡ Express Door Bypass Pass',
-      '🍸 10% Discount on Bottle Service'
-    ],
+    image_url: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=1200&q=80',
+    music_genres: ['Sunset House', 'Afro House', 'Melodic Techno', 'Pop Remix']
+  },
+  {
+    id: 'ven_club_icon',
+    slug: 'club-icon-cebu',
+    name: 'Club ICON',
+    tagline: 'The Legendary Mango Square Nightlife Epicenter',
+    address: 'Mango Square Mall, Gen. Maxilom Ave, Cebu City',
+    open_time: '22:00',
+    close_time: '06:00',
+    guestlist_cutoff_time: '23:30',
+    max_capacity: 800,
+    current_occupancy: 510,
+    is_active: 1,
+    image_url: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=80',
+    music_genres: ['Big Room', 'Festival Trap', 'Bounce', 'K-Pop Club']
   }
 ];
 
-export const SEED_TABLE_TYPES: TableType[] = [
-  // Sentral Table Types
-  {
-    id: 'tt_sentral_std',
-    club_id: 'clb_sentral',
-    name: 'Cocktail High Table',
-    description: 'Standing high table with bar stools on main floor with direct line of sight to the DJ booth.',
-    min_spend_cents: 400000, // ₱4,000
-    deposit_cents: 100000,   // ₱1,000
-    max_guests: 4,
-    is_active: 1,
-    perks: ['100% Consumable on Drinks & Bottles', 'Direct DJ View', 'Express Entry for 4'],
-    tier_badge: 'Standard',
-  },
-  {
-    id: 'tt_sentral_vip',
-    club_id: 'clb_sentral',
-    name: 'VIP Dancefloor Sofa Booth',
-    description: 'Plush leather booth directly adjacent to the main dancefloor with dedicated server.',
-    min_spend_cents: 800000, // ₱8,000
-    deposit_cents: 200000,   // ₱2,000
-    max_guests: 8,
-    is_active: 1,
-    perks: ['100% Consumable F&B', 'Dedicated VIP Host & Waiter', 'VIP Queue Bypass for 8', 'Complimentary Mixers'],
-    tier_badge: 'VIP',
-  },
-  {
-    id: 'tt_sentral_ultra',
-    club_id: 'clb_sentral',
-    name: 'Stage Master VIP Booth',
-    description: 'Elevated luxury booth right behind the DJ stage with panoramic room views.',
-    min_spend_cents: 1500000, // ₱15,000
-    deposit_cents: 300000,    // ₱3,000
-    max_guests: 12,
-    is_active: 1,
-    perks: ['100% Consumable on Premium Spirits & Champagne', 'DJ Stage Access', 'Bottle Sparkler Show', 'VIP Security Escort'],
-    tier_badge: 'Ultra VIP',
-  },
+export const SEED_TABLES: TableItem[] = [
+  // Kazmik Club (IT Park)
+  { id: 'tbl_kaz_v01', venue_id: 'ven_kazmik', table_number: 'VIP-01', category: 'VIP_COUCH', capacity: 12, min_spend_php: 35000.00, deposit_required_php: 15000.00, coord_x: 18, coord_y: 25, is_active: 1 },
+  { id: 'tbl_kaz_v02', venue_id: 'ven_kazmik', table_number: 'VIP-02', category: 'VIP_COUCH', capacity: 12, min_spend_php: 35000.00, deposit_required_php: 15000.00, coord_x: 82, coord_y: 25, is_active: 1 },
+  { id: 'tbl_kaz_f01', venue_id: 'ven_kazmik', table_number: 'FLR-01', category: 'DANCEFLOOR_HIGH', capacity: 8, min_spend_php: 20000.00, deposit_required_php: 8000.00, coord_x: 32, coord_y: 55, is_active: 1 },
+  { id: 'tbl_kaz_f02', venue_id: 'ven_kazmik', table_number: 'FLR-02', category: 'DANCEFLOOR_HIGH', capacity: 8, min_spend_php: 20000.00, deposit_required_php: 8000.00, coord_x: 68, coord_y: 55, is_active: 1 },
+  { id: 'tbl_kaz_c01', venue_id: 'ven_kazmik', table_number: 'COCKTAIL-1', category: 'COCKTAIL', capacity: 5, min_spend_php: 10000.00, deposit_required_php: 4000.00, coord_x: 50, coord_y: 78, is_active: 1 },
+  { id: 'tbl_kaz_own', venue_id: 'ven_kazmik', table_number: 'OWNER-01', category: 'OWNER_BOOTH', capacity: 10, min_spend_php: 50000.00, deposit_required_php: 20000.00, coord_x: 50, coord_y: 12, is_active: 1 },
 
-  // Trademark Table Types
-  {
-    id: 'tt_tm_couch',
-    club_id: 'clb_trademark',
-    name: 'Main Room Booth',
-    description: 'Comfortable booth seating in the central lounge area.',
-    min_spend_cents: 500000,
-    deposit_cents: 150000,
-    max_guests: 6,
-    is_active: 1,
-    perks: ['100% Consumable', 'Express Entry for 6', 'Dedicated Service'],
-    tier_badge: 'VIP',
-  },
-  {
-    id: 'tt_tm_owners',
-    club_id: 'clb_trademark',
-    name: 'Owner’s Corner Booth',
-    description: 'Secluded corner VIP booth with prime visibility across the entire club.',
-    min_spend_cents: 1000000,
-    deposit_cents: 250000,
-    max_guests: 10,
-    is_active: 1,
-    perks: ['100% Consumable', 'Champagne Bucket & Ice Setup', 'Sparkler Presentation'],
-    tier_badge: 'Ultra VIP',
-  },
+  // Trademark Cebu (Banilad)
+  { id: 'tbl_tm_v01', venue_id: 'ven_trademark', table_number: 'VIP-BOOTH-1', category: 'VIP_COUCH', capacity: 10, min_spend_php: 25000.00, deposit_required_php: 10000.00, coord_x: 22, coord_y: 30, is_active: 1 },
+  { id: 'tbl_tm_v02', venue_id: 'ven_trademark', table_number: 'VIP-BOOTH-2', category: 'VIP_COUCH', capacity: 10, min_spend_php: 25000.00, deposit_required_php: 10000.00, coord_x: 78, coord_y: 30, is_active: 1 },
+  { id: 'tbl_tm_h01', venue_id: 'ven_trademark', table_number: 'HIGH-01', category: 'DANCEFLOOR_HIGH', capacity: 4, min_spend_php: 12000.00, deposit_required_php: 5000.00, coord_x: 40, coord_y: 65, is_active: 1 },
+  { id: 'tbl_tm_h02', venue_id: 'ven_trademark', table_number: 'HIGH-02', category: 'DANCEFLOOR_HIGH', capacity: 4, min_spend_php: 12000.00, deposit_required_php: 5000.00, coord_x: 60, coord_y: 65, is_active: 1 },
 
-  // Loft Sky Bar Table Types
-  {
-    id: 'tt_loft_cabana',
-    club_id: 'clb_loft',
-    name: 'Skyline Skyline Cabana',
-    description: 'Private open-air glass railing cabana overlooking Cebu IT Park skyline.',
-    min_spend_cents: 1200000,
-    deposit_cents: 300000,
-    max_guests: 8,
-    is_active: 1,
-    perks: ['100% Consumable', 'Private Skyline View', 'Butler Bottle Service', 'Complimentary Welcome Prosecco'],
-    tier_badge: 'Ultra VIP',
-  },
-  {
-    id: 'tt_loft_deck',
-    club_id: 'clb_loft',
-    name: 'Rooftop Lounge Table',
-    description: 'Central deck seating under festoon fairy lights and open stars.',
-    min_spend_cents: 600000,
-    deposit_cents: 150000,
-    max_guests: 5,
-    is_active: 1,
-    perks: ['100% Consumable', 'Express Sky-Elevator Access'],
-    tier_badge: 'VIP',
-  },
+  // Morals & Malice (BTC)
+  { id: 'tbl_mm_l01', venue_id: 'ven_morals', table_number: 'LOUNGE-A', category: 'VIP_COUCH', capacity: 8, min_spend_php: 18000.00, deposit_required_php: 6000.00, coord_x: 28, coord_y: 40, is_active: 1 },
+  { id: 'tbl_mm_l02', venue_id: 'ven_morals', table_number: 'LOUNGE-B', category: 'VIP_COUCH', capacity: 8, min_spend_php: 18000.00, deposit_required_php: 6000.00, coord_x: 72, coord_y: 40, is_active: 1 },
+  { id: 'tbl_mm_b01', venue_id: 'ven_morals', table_number: 'BAR-TABLE', category: 'COCKTAIL', capacity: 4, min_spend_php: 8000.00, deposit_required_php: 3000.00, coord_x: 50, coord_y: 70, is_active: 1 },
 
-  // Verified Table Types
-  {
-    id: 'tt_ver_booth',
-    club_id: 'clb_verified',
-    name: 'Boutique LED Booth',
-    description: 'Intimate leather seating beneath illuminated kinetic LED ceiling.',
-    min_spend_cents: 500000,
-    deposit_cents: 100000,
-    max_guests: 6,
-    is_active: 1,
-    perks: ['100% Consumable', 'VIP Host Entry'],
-    tier_badge: 'VIP',
-  }
+  // Verified Lounge (Cebu Business Park)
+  { id: 'tbl_ver_cab1', venue_id: 'ven_verified', table_number: 'CABANA-1', category: 'VIP_COUCH', capacity: 8, min_spend_php: 22000.00, deposit_required_php: 8000.00, coord_x: 20, coord_y: 35, is_active: 1 },
+  { id: 'tbl_ver_cab2', venue_id: 'ven_verified', table_number: 'CABANA-2', category: 'VIP_COUCH', capacity: 8, min_spend_php: 22000.00, deposit_required_php: 8000.00, coord_x: 80, coord_y: 35, is_active: 1 },
+  { id: 'tbl_ver_ter1', venue_id: 'ven_verified', table_number: 'TERRACE-1', category: 'COCKTAIL', capacity: 6, min_spend_php: 12000.00, deposit_required_php: 5000.00, coord_x: 50, coord_y: 60, is_active: 1 },
+
+  // Club ICON (Mango Square)
+  { id: 'tbl_icon_v01', venue_id: 'ven_club_icon', table_number: 'VIP-CENTER-1', category: 'VIP_COUCH', capacity: 12, min_spend_php: 30000.00, deposit_required_php: 12000.00, coord_x: 30, coord_y: 25, is_active: 1 },
+  { id: 'tbl_icon_v02', venue_id: 'ven_club_icon', table_number: 'VIP-CENTER-2', category: 'VIP_COUCH', capacity: 12, min_spend_php: 30000.00, deposit_required_php: 12000.00, coord_x: 70, coord_y: 25, is_active: 1 },
+  { id: 'tbl_icon_h01', venue_id: 'ven_club_icon', table_number: 'RING-HIGH-1', category: 'DANCEFLOOR_HIGH', capacity: 5, min_spend_php: 10000.00, deposit_required_php: 4000.00, coord_x: 50, coord_y: 60, is_active: 1 }
 ];
 
-export const SEED_CLUB_TABLES: ClubTable[] = [
-  // Sentral Tables
-  { id: 'tbl_s_01', club_id: 'clb_sentral', table_type_id: 'tt_sentral_ultra', table_number: 'VIP-01 (Stage Left)', location_description: 'Elevated Stage Left', is_active: 1, x: 22, y: 22, width: 65, height: 42, shape: 'booth' },
-  { id: 'tbl_s_02', club_id: 'clb_sentral', table_type_id: 'tt_sentral_ultra', table_number: 'VIP-02 (Stage Right)', location_description: 'Elevated Stage Right', is_active: 1, x: 78, y: 22, width: 65, height: 42, shape: 'booth' },
-  { id: 'tbl_s_03', club_id: 'clb_sentral', table_type_id: 'tt_sentral_vip', table_number: 'DF-01', location_description: 'Dancefloor Front Center', is_active: 1, x: 30, y: 48, width: 55, height: 38, shape: 'booth' },
-  { id: 'tbl_s_04', club_id: 'clb_sentral', table_type_id: 'tt_sentral_vip', table_number: 'DF-02', location_description: 'Dancefloor Front Right', is_active: 1, x: 70, y: 48, width: 55, height: 38, shape: 'booth' },
-  { id: 'tbl_s_05', club_id: 'clb_sentral', table_type_id: 'tt_sentral_vip', table_number: 'MZ-01', location_description: 'Mezzanine Raised Tier', is_active: 1, x: 18, y: 70, width: 52, height: 36, shape: 'booth' },
-  { id: 'tbl_s_06', club_id: 'clb_sentral', table_type_id: 'tt_sentral_std', table_number: 'HT-01', location_description: 'Main Bar High Table', is_active: 1, x: 42, y: 74, width: 34, height: 34, shape: 'circle' },
-  { id: 'tbl_s_07', club_id: 'clb_sentral', table_type_id: 'tt_sentral_std', table_number: 'HT-02', location_description: 'Main Bar High Table', is_active: 1, x: 58, y: 74, width: 34, height: 34, shape: 'circle' },
-  { id: 'tbl_s_08', club_id: 'clb_sentral', table_type_id: 'tt_sentral_std', table_number: 'HT-03', location_description: 'Main Bar High Table', is_active: 1, x: 82, y: 70, width: 34, height: 34, shape: 'circle' },
-
-  // Trademark Tables
-  { id: 'tbl_tm_01', club_id: 'clb_trademark', table_type_id: 'tt_tm_owners', table_number: 'TM-OWNER-01', location_description: 'VIP Corner', is_active: 1, x: 25, y: 25, width: 65, height: 40, shape: 'booth' },
-  { id: 'tbl_tm_02', club_id: 'clb_trademark', table_type_id: 'tt_tm_couch', table_number: 'TM-BTH-01', location_description: 'Central Lounge', is_active: 1, x: 75, y: 30, width: 55, height: 38, shape: 'booth' },
-  { id: 'tbl_tm_03', club_id: 'clb_trademark', table_type_id: 'tt_tm_couch', table_number: 'TM-BTH-02', location_description: 'Bar Side', is_active: 1, x: 50, y: 65, width: 55, height: 38, shape: 'booth' },
-
-  // Loft Sky Bar Tables
-  { id: 'tbl_lft_01', club_id: 'clb_loft', table_type_id: 'tt_loft_cabana', table_number: 'CABANA-01', location_description: 'North Skyline View', is_active: 1, x: 25, y: 25, width: 68, height: 45, shape: 'booth' },
-  { id: 'tbl_lft_02', club_id: 'clb_loft', table_type_id: 'tt_loft_cabana', table_number: 'CABANA-02', location_description: 'South Skyline View', is_active: 1, x: 75, y: 25, width: 68, height: 45, shape: 'booth' },
-  { id: 'tbl_lft_03', club_id: 'clb_loft', table_type_id: 'tt_loft_deck', table_number: 'DECK-01', location_description: 'Center Deck', is_active: 1, x: 50, y: 65, width: 50, height: 36, shape: 'booth' },
-
-  // Verified Tables
-  { id: 'tbl_ver_01', club_id: 'clb_verified', table_type_id: 'tt_ver_booth', table_number: 'V-01', location_description: 'LED Main Room', is_active: 1, x: 35, y: 35, width: 55, height: 40, shape: 'booth' },
-  { id: 'tbl_ver_02', club_id: 'clb_verified', table_type_id: 'tt_ver_booth', table_number: 'V-02', location_description: 'LED Main Room', is_active: 1, x: 65, y: 35, width: 55, height: 40, shape: 'booth' },
-];
-
-export const SEED_BOOKINGS: Booking[] = [
+export const SEED_BOOKINGS: TableBooking[] = [
   {
-    id: 'bkg_sentral_101',
-    club_id: 'clb_sentral',
-    table_id: 'tbl_s_01',
-    user_id: 'usr_guest1',
-    booking_date: new Date().toISOString().split('T')[0],
-    arrival_time: '23:30',
+    id: 'bk_001',
+    booking_ref: 'AH-KAZ-9182',
+    venue_id: 'ven_kazmik',
+    table_id: 'tbl_kaz_v01',
+    user_id: 'usr_c01',
+    target_date: '2026-08-21',
+    guest_count: 10,
+    deposit_amount_php: 15000.00,
+    min_spend_php: 35000.00,
+    status: 'CONFIRMED',
+    idempotency_key: 'idemp_bk_9182_a8f9c1',
+    hold_expires_at: '2026-08-21T21:10:00Z',
+    promoter_code: 'CEBU_VIP_CARLO',
+    payment_method: 'GCASH',
+    payment_reference: 'PAYMONGO_CH_994102910',
+    checked_in_at: null,
+    created_at: '2026-08-21T11:00:00Z'
+  },
+  {
+    id: 'bk_002',
+    booking_ref: 'AH-TM-4412',
+    venue_id: 'ven_trademark',
+    table_id: 'tbl_tm_v01',
+    user_id: 'usr_c02',
+    target_date: '2026-08-21',
     guest_count: 8,
-    min_spend_cents: 1500000, // ₱15,000
-    deposit_paid_cents: 300000, // ₱3,000
-    status: 'confirmed',
-    special_requests: 'Birthday celebration with bottle sparkler show',
-    created_at: new Date().toISOString().replace('T', ' ').substring(0, 19),
-    qr_code: 'AH-CLB_SENTRAL-101',
-    ambassador_promo_code: 'CEBUVIP',
-    commission_cents: 150000,
-    customer_name: 'Marco Villamor',
-    customer_email: 'marco.cebu@gmail.com',
-    customer_phone: '+63 917 555 1201',
-    payment_method: 'GCash',
-  },
-  {
-    id: 'bkg_sentral_102',
-    club_id: 'clb_sentral',
-    table_id: 'tbl_s_04',
-    user_id: 'usr_guest1',
-    booking_date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-    arrival_time: '00:00',
-    guest_count: 6,
-    min_spend_cents: 800000,
-    deposit_paid_cents: 200000,
-    status: 'confirmed',
-    special_requests: 'VIP bottle queue bypass',
-    created_at: new Date().toISOString().replace('T', ' ').substring(0, 19),
-    qr_code: 'AH-CLB_SENTRAL-102',
-    ambassador_promo_code: 'MANGOFRESH',
-    commission_cents: 80000,
-    customer_name: 'Marco Villamor',
-    customer_email: 'marco.cebu@gmail.com',
-    customer_phone: '+63 917 555 1201',
-    payment_method: 'Maya',
+    deposit_amount_php: 10000.00,
+    min_spend_php: 25000.00,
+    status: 'CHECKED_IN',
+    idempotency_key: 'idemp_bk_4412_d7b3e2',
+    hold_expires_at: '2026-08-21T21:40:00Z',
+    promoter_code: 'NIKKI_NIGHTS',
+    payment_method: 'MAYA',
+    payment_reference: 'MAYA_REF_881920311',
+    checked_in_at: '2026-08-21T22:45:10Z',
+    created_at: '2026-08-21T11:30:00Z'
   }
 ];
 
-export const SEED_GUESTLIST: GuestListEntry[] = [
+export const SEED_GUESTLISTS: GuestlistEntry[] = [
   {
-    id: 'gl_trademark_201',
-    club_id: 'clb_trademark',
-    user_id: 'usr_guest1',
-    event_date: new Date().toISOString().split('T')[0],
-    guest_name: 'Marco Villamor',
-    guest_email: 'marco.cebu@gmail.com',
-    guest_phone: '+63 917 555 1201',
-    pax: 2,
-    arrival_time_estimate: '23:00',
-    status: 'valid',
-    qr_code: 'AH-GL-201',
-    ambassador_perk: '⚡ Free Ambassador VIP Entry + Express Queue',
-    created_at: new Date().toISOString().replace('T', ' ').substring(0, 19),
+    id: 'gl_001',
+    pass_ref: 'GL-KAZ-1049',
+    venue_id: 'ven_kazmik',
+    user_id: 'usr_c02',
+    target_date: '2026-08-21',
+    guest_count: 2,
+    promoter_code: 'CEBU_VIP_CARLO',
+    status: 'ACTIVE',
+    cutoff_time: '23:30',
+    checked_in_at: null,
+    created_at: '2026-08-21T14:00:00Z'
+  },
+  {
+    id: 'gl_002',
+    pass_ref: 'GL-TM-7714',
+    venue_id: 'ven_trademark',
+    user_id: 'usr_c03',
+    target_date: '2026-08-21',
+    guest_count: 1,
+    promoter_code: 'NIKKI_NIGHTS',
+    status: 'CHECKED_IN',
+    cutoff_time: '23:45',
+    checked_in_at: '2026-08-21T23:12:44Z',
+    created_at: '2026-08-21T15:20:00Z'
+  },
+  {
+    id: 'gl_003',
+    pass_ref: 'GL-ICON-9011',
+    venue_id: 'ven_club_icon',
+    user_id: 'usr_c01',
+    target_date: '2026-08-21',
+    guest_count: 1,
+    promoter_code: null,
+    status: 'EXPIRED_CUTOFF',
+    cutoff_time: '23:30',
+    checked_in_at: null,
+    created_at: '2026-08-21T09:00:00Z'
+  }
+];
+
+export const SEED_LEDGER_TRANSACTIONS: LedgerTransaction[] = [
+  {
+    id: 'tx_001',
+    transaction_ref: 'TXN-20260821-0001',
+    reference_type: 'TABLE_DEPOSIT',
+    reference_id: 'bk_001',
+    idempotency_key: 'idemp_bk_9182_a8f9c1',
+    description: 'Table deposit hold for Kazmik VIP-01 (Promoter: CEBU_VIP_CARLO)',
+    previous_hash: '0000000000000000000000000000000000000000000000000000000000000000',
+    block_hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    timestamp: '2026-08-21T11:00:00Z'
+  }
+];
+
+export const SEED_LEDGER_POSTINGS: LedgerPosting[] = [
+  {
+    id: 'post_001',
+    transaction_id: 'tx_001',
+    account: 'CASH_GATEWAY_RECEIVABLE',
+    posting_type: 'DEBIT',
+    amount_php: 15000.00
+  },
+  {
+    id: 'post_002',
+    transaction_id: 'tx_001',
+    account: 'VENUE_PAYOUT_PAYABLE',
+    posting_type: 'CREDIT',
+    amount_php: 12960.00
+  },
+  {
+    id: 'post_003',
+    transaction_id: 'tx_001',
+    account: 'PROMOTER_COMMISSION_PAYABLE',
+    posting_type: 'CREDIT',
+    amount_php: 1500.00
+  },
+  {
+    id: 'post_004',
+    transaction_id: 'tx_001',
+    account: 'PLATFORM_REVENUE',
+    posting_type: 'CREDIT',
+    amount_php: 540.00
   }
 ];

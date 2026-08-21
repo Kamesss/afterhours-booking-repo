@@ -1,429 +1,321 @@
+// ============================================================================
+// VENUE MANAGER & ADMIN OPERATIONAL DASHBOARD WITH FINANCIAL LEDGER
+// ============================================================================
 import React, { useState } from 'react';
-import { Club, Booking, TableType } from '../types';
-import { db } from '../lib/storage';
-import { formatPeso, formatDatePretty } from '../lib/formatters';
-import { Store, DollarSign, Users, CheckCircle2, XCircle, TrendingUp, Calendar, Edit3, Plus, ShieldCheck, Sparkles, Filter } from 'lucide-react';
+import { clientStore } from '../lib/storage';
+import { formatPHP, formatCategory } from '../lib/formatters';
+import { 
+  BarChart3, 
+  DollarSign, 
+  Users, 
+  Calendar, 
+  Layers, 
+  ShieldCheck, 
+  CheckCircle2, 
+  Clock, 
+  Building2, 
+  TrendingUp, 
+  Sparkles 
+} from 'lucide-react';
 
 export const VenueAdminDashboard: React.FC = () => {
-  const clubs = db.getClubs();
-  const [selectedClubId, setSelectedClubId] = useState<string>(() => clubs[0]?.id || 'clb_sentral');
-  const selectedClub = db.getClubById(selectedClubId) || clubs[0] || {
-    id: 'clb_sentral',
-    owner_id: 'usr_owner_sentral',
-    name: 'Sentral Bar & Lounge',
-    slug: 'sentral-bar-lounge',
-    address: 'Nivel Hills, Lahug, Cebu City',
-    min_age: 18,
-    is_active: 1,
-    created_at: new Date().toISOString(),
-    area: 'Lahug / Nivel Hills',
-  };
+  const venues = clientStore.getVenues();
+  const [selectedVenueId, setSelectedVenueId] = useState<string>(venues[0]?.id || 'ven_kazmik');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tables' | 'bookings' | 'ledger'>('overview');
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const [dateFilter, setDateFilter] = useState<string>(todayStr);
+  const activeVenue = clientStore.getVenueById(selectedVenueId) || venues[0];
+  const tables = clientStore.getTablesByVenue(selectedVenueId);
+  const bookings = clientStore.getBookings(selectedVenueId);
+  const guestlists = clientStore.getGuestlists(selectedVenueId);
+  const ledgerTx = clientStore.getLedgerTransactions();
+  const ledgerPostings = clientStore.getLedgerPostings();
 
-  const bookings = db.getBookings(selectedClubId, dateFilter || undefined);
-  const allClubBookings = db.getBookings(selectedClubId);
-  const guestList = db.getGuestList(selectedClubId, dateFilter || undefined);
-  const tableTypes = db.getTableTypes(selectedClubId);
-  const physicalTables = db.getClubTables(selectedClubId);
-
-  // Financial Metrics
-  const grossMinSpend = allClubBookings.reduce((sum, b) => sum + b.min_spend_cents, 0);
-  const totalDepositsCollected = allClubBookings.reduce((sum, b) => sum + b.deposit_paid_cents, 0);
-  const totalCommissionEarned = allClubBookings.reduce((sum, b) => sum + b.commission_cents, 0);
-  const netVenueRevenue = grossMinSpend - totalCommissionEarned;
-
-  // Editing Table Type State
-  const [editingType, setEditingType] = useState<TableType | null>(null);
-  const [editMinSpend, setEditMinSpend] = useState<number>(0);
-  const [editDeposit, setEditDeposit] = useState<number>(0);
-  const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
-
-  const handleStartEdit = (tt: TableType) => {
-    setEditingType(tt);
-    setEditMinSpend(tt.min_spend_cents / 100);
-    setEditDeposit(tt.deposit_cents / 100);
-    setSaveSuccess(false);
-  };
-
-  const handleSaveTableType = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingType) return;
-    db.updateTableType(editingType.id, {
-      min_spend_cents: editMinSpend * 100,
-      deposit_cents: editDeposit * 100,
-    });
-    setSaveSuccess(true);
-    setTimeout(() => {
-      setEditingType(null);
-      setSaveSuccess(false);
-    }, 1000);
-  };
+  // Metrics
+  const totalDepositGross = bookings.reduce((sum, b) => sum + (b.status !== 'CANCELLED' ? b.deposit_amount_php : 0), 0);
+  const totalMinSpendGross = bookings.reduce((sum, b) => sum + (b.status !== 'CANCELLED' ? b.min_spend_php : 0), 0);
+  const confirmedBookingsCount = bookings.filter(b => b.status === 'CONFIRMED' || b.status === 'CHECKED_IN').length;
+  const activeGuestlistPax = guestlists.filter(g => g.status === 'ACTIVE' || g.status === 'CHECKED_IN').reduce((sum, g) => sum + g.guest_count, 0);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       
-      {/* Top Club Selector & Value Proposition Banner */}
-      <div className="bg-[#0A0A0B] border border-white/10 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#FF2E88]/10 via-[#8B5CF6]/10 to-transparent blur-3xl pointer-events-none" />
-        
-        <div className="space-y-2 relative z-10">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#FF2E88]/15 text-[#FF2E88] border border-[#FF2E88]/30">
-            <Store className="w-3.5 h-3.5 text-[#FF2E88]" />
-            <span>Automated Ambassador Club Console</span>
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-zinc-900 border border-zinc-800">
+        <div>
+          <div className="flex items-center space-x-2">
+            <Building2 className="w-5 h-5 text-orange-400" />
+            <h2 className="text-xl font-bold text-white">Cebu Nightlife Management Portal</h2>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white">
-            {selectedClub.name}
-          </h1>
-          <p className="text-xs text-white/50">
-            Zero-risk commission model &bull; 0 upfront ambassador payroll &bull; Real-time booking deposits
+          <p className="text-xs text-zinc-400 font-mono mt-0.5">
+            Cloudflare D1 atomic reservation engine & double-entry ledger
           </p>
         </div>
 
-        {/* Venue Switcher */}
-        <div className="flex items-center gap-3 relative z-10">
-          <label className="text-xs text-white/60 whitespace-nowrap">Select Venue:</label>
+        {/* Venue Selector */}
+        <div className="flex items-center space-x-3">
+          <label className="text-xs text-zinc-400 font-mono">Select Venue:</label>
           <select
-            value={selectedClubId}
-            onChange={e => setSelectedClubId(e.target.value)}
-            className="bg-[#111] border border-white/15 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#FF2E88] font-bold cursor-pointer"
+            value={selectedVenueId}
+            onChange={e => setSelectedVenueId(e.target.value)}
+            className="bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-mono text-zinc-200 focus:outline-none focus:border-orange-500"
           >
-            {clubs.map(c => (
-              <option key={c.id} value={c.id}>{c.name} ({c.area})</option>
+            {venues.map(v => (
+              <option key={v.id} value={v.id}>{v.name}</option>
             ))}
           </select>
         </div>
       </div>
 
-      {/* Financial Overview Cards (The Zero-Risk Math) */}
+      {/* Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        <div className="bg-[#0A0A0B] border border-white/10 rounded-2xl p-5 space-y-2">
-          <div className="flex items-center justify-between text-xs text-white/50">
-            <span>Gross Consumable Bookings</span>
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
+        <div className="p-5 rounded-2xl bg-zinc-900 border border-zinc-800">
+          <span className="text-xs text-zinc-400">Total Consumable Revenue</span>
+          <div className="text-2xl font-bold font-mono text-white mt-1">
+            {formatPHP(totalMinSpendGross)}
           </div>
-          <p className="text-2xl font-black text-white font-mono">{formatPeso(grossMinSpend)}</p>
-          <p className="text-[11px] text-emerald-400">Total driven via AfterHours</p>
-        </div>
-
-        <div className="bg-[#0A0A0B] border border-white/10 rounded-2xl p-5 space-y-2">
-          <div className="flex items-center justify-between text-xs text-white/50">
-            <span>In-App Deposits Collected</span>
-            <DollarSign className="w-4 h-4 text-[#8B5CF6]" />
+          <div className="flex items-center space-x-1 text-[11px] text-emerald-400 mt-2">
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>{confirmedBookingsCount} VIP tables reserved</span>
           </div>
-          <p className="text-2xl font-black text-[#8B5CF6] font-mono">{formatPeso(totalDepositsCollected)}</p>
-          <p className="text-[11px] text-white/40">Guaranteed upfront payment</p>
         </div>
 
-        <div className="bg-[#0A0A0B] border border-white/10 rounded-2xl p-5 space-y-2">
-          <div className="flex items-center justify-between text-xs text-white/50">
-            <span>AfterHours Ambassador Fee</span>
-            <Sparkles className="w-4 h-4 text-amber-400" />
+        <div className="p-5 rounded-2xl bg-zinc-900 border border-zinc-800">
+          <span className="text-xs text-zinc-400">Locked Deposits Collected</span>
+          <div className="text-2xl font-bold font-mono text-orange-400 mt-1">
+            {formatPHP(totalDepositGross)}
           </div>
-          <p className="text-2xl font-black text-amber-400 font-mono">{formatPeso(totalCommissionEarned)}</p>
-          <p className="text-[11px] text-white/40">10% Success-only commission</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-[#FF2E88]/15 via-[#8B5CF6]/10 to-[#0A0A0B] border border-[#FF2E88]/30 rounded-2xl p-5 space-y-2 shadow-[0_0_20px_rgba(255,46,136,0.15)]">
-          <div className="flex items-center justify-between text-xs text-white/70">
-            <span>Net Venue Earnings</span>
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <div className="flex items-center space-x-1 text-[11px] text-zinc-400 mt-2 font-mono">
+            <span>Philippine Rails (GCash/Maya)</span>
           </div>
-          <p className="text-2xl font-black text-white font-mono">{formatPeso(netVenueRevenue)}</p>
-          <p className="text-[11px] text-emerald-400 font-medium">90% Payout directly to venue</p>
         </div>
 
-      </div>
-
-      {/* Date Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-[#0A0A0B] border border-white/10 rounded-2xl">
-        <div className="flex items-center gap-2 text-xs text-white/80 font-bold uppercase tracking-wider">
-          <Calendar className="w-4 h-4 text-[#FF2E88]" />
-          <span>Active Bookings & Door Roster</span>
+        <div className="p-5 rounded-2xl bg-zinc-900 border border-zinc-800">
+          <span className="text-xs text-zinc-400">Guestlist Admitted / Active</span>
+          <div className="text-2xl font-bold font-mono text-purple-400 mt-1">
+            {activeGuestlistPax} <span className="text-xs text-zinc-500 font-normal">pax</span>
+          </div>
+          <div className="flex items-center space-x-1 text-[11px] text-amber-400 mt-2 font-mono">
+            <Clock className="w-3 h-3" />
+            <span>Cutoff: {activeVenue.guestlist_cutoff_time}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setDateFilter(todayStr)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              dateFilter === todayStr
-                ? 'bg-gradient-to-r from-[#FF2E88] to-[#8B5CF6] text-white shadow-[0_0_15px_rgba(255,46,136,0.3)]'
-                : 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
-            }`}
-          >
-            Tonight ({todayStr})
-          </button>
-          <button
-            onClick={() => setDateFilter('')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              dateFilter === ''
-                ? 'bg-gradient-to-r from-[#FF2E88] to-[#8B5CF6] text-white shadow-[0_0_15px_rgba(255,46,136,0.3)]'
-                : 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
-            }`}
-          >
-            All Dates
-          </button>
+
+        <div className="p-5 rounded-2xl bg-zinc-900 border border-zinc-800">
+          <span className="text-xs text-zinc-400">Live Gate Headcount</span>
+          <div className="text-2xl font-bold font-mono text-emerald-400 mt-1">
+            {activeVenue.current_occupancy} <span className="text-xs text-zinc-500 font-normal">/ {activeVenue.max_capacity}</span>
+          </div>
+          <div className="w-full bg-zinc-800 h-1.5 rounded-full mt-3 overflow-hidden">
+            <div 
+              className="bg-emerald-500 h-full rounded-full"
+              style={{ width: `${Math.min(100, (activeVenue.current_occupancy / activeVenue.max_capacity) * 100)}%` }}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Bookings & Guestlist Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Table Bookings List (7 cols) */}
-        <div className="lg:col-span-7 bg-[#0A0A0B] border border-white/10 rounded-3xl p-6 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-white/10">
-            <h3 className="font-extrabold text-sm text-white uppercase tracking-wider flex items-center gap-2">
-              <Users className="w-4 h-4 text-[#FF2E88]" />
-              VIP Table Reservations ({bookings.length})
+      {/* Tabs */}
+      <div className="flex border-b border-zinc-800">
+        {[
+          { id: 'overview', label: 'Overview & Activity' },
+          { id: 'tables', label: `Tables Inventory (${tables.length})` },
+          { id: 'bookings', label: `Table Bookings (${bookings.length})` },
+          { id: 'ledger', label: `Double-Entry Financial Ledger` }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`py-3 px-5 text-xs font-semibold border-b-2 transition ${
+              activeTab === tab.id
+                ? 'border-orange-500 text-orange-400'
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Panels */}
+      {activeTab === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Recent Reservations */}
+          <div className="p-6 rounded-3xl bg-zinc-900 border border-zinc-800 space-y-4">
+            <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+              <Calendar className="w-4 h-4 text-orange-400" />
+              <span>Recent Table Reservations</span>
             </h3>
-            <span className="text-xs text-white/50">{physicalTables.length} Total Physical Tables</span>
-          </div>
 
-          {bookings.length === 0 ? (
-            <div className="py-12 text-center text-white/40 text-xs">
-              No reservations recorded for this date filter.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {bookings.map(b => {
-                const table = physicalTables.find(t => t.id === b.table_id);
-                return (
-                  <div
-                    key={b.id}
-                    className="p-4 bg-[#050505] border border-white/10 rounded-2xl space-y-3 text-xs"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-black text-sm text-white">{b.customer_name}</span>
-                          <span className="px-2 py-0.5 rounded-full bg-[#FF2E88]/15 text-[#FF2E88] border border-[#FF2E88]/30 font-bold text-[10px]">
-                            {table?.table_number || b.table_id}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-white/50 mt-0.5">
-                          {b.customer_phone} &bull; {b.customer_email} &bull; {b.guest_count} Guests
-                        </p>
-                      </div>
-
-                      <div className="text-right">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                          b.status === 'completed'
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                            : b.status === 'confirmed'
-                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                            : 'bg-red-500/20 text-red-300'
-                        }`}>
-                          {b.status}
-                        </span>
-                        <p className="text-[10px] text-white/40 mt-1">Arrival: {b.arrival_time}</p>
-                      </div>
+            <div className="divide-y divide-zinc-800">
+              {bookings.slice(0, 4).map(b => (
+                <div key={b.id} className="py-3 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold font-mono text-orange-400">{b.booking_ref}</span>
+                      <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono">{b.table_id}</span>
                     </div>
-
-                    <div className="grid grid-cols-3 gap-2 bg-[#111] p-2.5 rounded-xl border border-white/10 text-[11px]">
-                      <div>
-                        <span className="text-white/40 block text-[9px] uppercase">Min Spend</span>
-                        <span className="font-bold text-white font-mono">{formatPeso(b.min_spend_cents)}</span>
-                      </div>
-                      <div>
-                        <span className="text-white/40 block text-[9px] uppercase">Deposit Paid</span>
-                        <span className="font-bold text-emerald-400 font-mono">{formatPeso(b.deposit_paid_cents)}</span>
-                      </div>
-                      <div>
-                        <span className="text-white/40 block text-[9px] uppercase">Payment</span>
-                        <span className="font-medium text-white/70">{b.payment_method}</span>
-                      </div>
-                    </div>
-
-                    {b.special_requests && (
-                      <p className="text-[11px] text-amber-300/90 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
-                        🎁 Request: {b.special_requests}
-                      </p>
-                    )}
-
-                    <div className="flex items-center justify-between pt-1 text-[10px] text-white/50">
-                      <span className="font-mono">QR: {b.qr_code}</span>
-                      <div className="flex gap-2">
-                        {b.status !== 'completed' && (
-                          <button
-                            onClick={() => db.updateBookingStatus(b.id, 'completed')}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors cursor-pointer"
-                          >
-                            Mark Checked In
-                          </button>
-                        )}
-                        {b.status !== 'no_show' && (
-                          <button
-                            onClick={() => db.updateBookingStatus(b.id, 'no_show')}
-                            className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 border border-white/10 transition-colors cursor-pointer"
-                          >
-                            No Show
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                    <p className="text-zinc-400 mt-0.5">{b.guest_count} guests • {b.target_date}</p>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Guest List Queue (5 cols) */}
-        <div className="lg:col-span-5 bg-[#0A0A0B] border border-white/10 rounded-3xl p-6 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-white/10">
-            <h3 className="font-extrabold text-sm text-white uppercase tracking-wider flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-400" />
-              Ambassador Guest List ({guestList.length})
-            </h3>
-            <span className="text-xs text-white/50">Auto Door Perks</span>
-          </div>
-
-          {guestList.length === 0 ? (
-            <div className="py-12 text-center text-white/40 text-xs">
-              No guest list entries for this date filter.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {guestList.map(gl => (
-                <div
-                  key={gl.id}
-                  className="p-3.5 bg-[#050505] border border-white/10 rounded-2xl space-y-2 text-xs"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-bold text-white text-sm">{gl.guest_name}</p>
-                      <p className="text-[11px] text-white/50">{gl.guest_email} &bull; {gl.guest_phone}</p>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      {gl.pax} Guests
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-white/80 bg-[#111] p-2 rounded-lg border border-white/10">
-                    Perk: {gl.ambassador_perk}
-                  </p>
-
-                  <div className="flex items-center justify-between text-[10px] text-white/40">
-                    <span>ETA: {gl.arrival_time_estimate}</span>
-                    <span className="font-mono">{gl.qr_code}</span>
+                  <div className="text-right font-mono">
+                    <span className="text-emerald-400 font-bold">{formatPHP(b.deposit_amount_php)}</span>
+                    <p className="text-[10px] text-zinc-500 uppercase">{b.payment_method || 'GCASH'}</p>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* Table Types & Minimum Spend Live Editor */}
-      <div className="bg-[#0A0A0B] border border-white/10 rounded-3xl p-6 sm:p-8 space-y-6">
-        <div className="flex items-center justify-between border-b border-white/10 pb-4">
-          <div>
-            <h3 className="text-lg font-black text-white">
-              Table Tiers & Consumable Pricing Setup
-            </h3>
-            <p className="text-xs text-white/50">
-              Customize minimum consumable spend and required upfront deposit per tier. Changes sync instantly to partygoer booking flow.
-            </p>
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {tableTypes.map(tt => (
-            <div
-              key={tt.id}
-              className="p-5 bg-[#050505] border border-white/10 rounded-2xl space-y-3 flex flex-col justify-between"
-            >
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-white text-sm">{tt.name}</span>
-                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-white/5 text-white/70 border border-white/10">
-                    {tt.tier_badge}
+          {/* Guestlist Entries */}
+          <div className="p-6 rounded-3xl bg-zinc-900 border border-zinc-800 space-y-4">
+            <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+              <Users className="w-4 h-4 text-purple-400" />
+              <span>Tonight's VIP Guestlist</span>
+            </h3>
+
+            <div className="divide-y divide-zinc-800">
+              {guestlists.slice(0, 4).map(g => (
+                <div key={g.id} className="py-3 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold font-mono text-purple-400">{g.pass_ref}</span>
+                      <span className="text-zinc-400 font-mono">({g.guest_count} pax)</span>
+                    </div>
+                    <p className="text-zinc-400 mt-0.5">Cutoff: {g.cutoff_time}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded font-mono text-[11px] ${
+                    g.status === 'CHECKED_IN' ? 'bg-blue-950 text-blue-300 border border-blue-800' :
+                    g.status === 'ACTIVE' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' :
+                    'bg-rose-950 text-rose-300 border border-rose-800'
+                  }`}>
+                    {g.status}
                   </span>
                 </div>
-                <p className="text-xs text-white/50 line-clamp-2">{tt.description}</p>
-                <p className="text-[11px] text-[#FF2E88] font-medium">Capacity: Max {tt.max_guests} Guests</p>
-              </div>
-
-              <div className="pt-3 border-t border-white/10 space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-white/50">Min Spend:</span>
-                  <span className="font-bold text-white font-mono">{formatPeso(tt.min_spend_cents)}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-white/50">Upfront Deposit:</span>
-                  <span className="font-bold text-emerald-400 font-mono">{formatPeso(tt.deposit_cents)}</span>
-                </div>
-              </div>
-
-              <button
-                onClick={() => handleStartEdit(tt)}
-                className="w-full py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-white/80 border border-white/10 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-amber-400" />
-                <span>Edit Pricing Tier</span>
-              </button>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Edit Table Type Modal */}
-      {editingType && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#0A0A0B] border border-white/10 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl">
-            <h4 className="text-base font-bold text-white">
-              Update Pricing &bull; {editingType.name}
-            </h4>
+      {activeTab === 'tables' && (
+        <div className="p-6 rounded-3xl bg-zinc-900 border border-zinc-800 space-y-4">
+          <h3 className="text-sm font-bold text-white">Tables & Floor Layout Inventory</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="bg-zinc-950 text-zinc-400 border-b border-zinc-800">
+                <tr>
+                  <th className="p-3">ID</th>
+                  <th className="p-3">Table #</th>
+                  <th className="p-3">Category</th>
+                  <th className="p-3">Capacity</th>
+                  <th className="p-3">Min Spend</th>
+                  <th className="p-3">Deposit Required</th>
+                  <th className="p-3">Coordinates (X, Y)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800 text-zinc-300">
+                {tables.map(t => (
+                  <tr key={t.id} className="hover:bg-zinc-800/40">
+                    <td className="p-3 text-orange-400 font-bold">{t.id}</td>
+                    <td className="p-3 text-white font-semibold">{t.table_number}</td>
+                    <td className="p-3"><span className="px-2 py-0.5 rounded bg-zinc-800">{formatCategory(t.category)}</span></td>
+                    <td className="p-3">{t.capacity} pax</td>
+                    <td className="p-3 text-emerald-400">{formatPHP(t.min_spend_php)}</td>
+                    <td className="p-3 text-amber-400">{formatPHP(t.deposit_required_php)}</td>
+                    <td className="p-3 text-zinc-400">{t.coord_x}%, {t.coord_y}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-            <form onSubmit={handleSaveTableType} className="space-y-4">
-              <div>
-                <label className="block text-xs text-white/50 mb-1">Minimum Consumable Spend (₱)</label>
-                <input
-                  type="number"
-                  required
-                  min={500}
-                  step={500}
-                  value={editMinSpend}
-                  onChange={e => setEditMinSpend(Number(e.target.value))}
-                  className="w-full bg-[#111] border border-white/15 rounded-xl p-3 text-sm text-white font-bold focus:outline-none focus:border-[#FF2E88]"
-                />
+      {activeTab === 'bookings' && (
+        <div className="p-6 rounded-3xl bg-zinc-900 border border-zinc-800 space-y-4">
+          <h3 className="text-sm font-bold text-white">Full Table Bookings Ledger</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="bg-zinc-950 text-zinc-400 border-b border-zinc-800">
+                <tr>
+                  <th className="p-3">Booking Ref</th>
+                  <th className="p-3">Table ID</th>
+                  <th className="p-3">Target Date</th>
+                  <th className="p-3">Guests</th>
+                  <th className="p-3">Deposit (PHP)</th>
+                  <th className="p-3">Promoter</th>
+                  <th className="p-3">Payment</th>
+                  <th className="p-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800 text-zinc-300">
+                {bookings.map(b => (
+                  <tr key={b.id} className="hover:bg-zinc-800/40">
+                    <td className="p-3 text-orange-400 font-bold">{b.booking_ref}</td>
+                    <td className="p-3 text-white">{b.table_id}</td>
+                    <td className="p-3">{b.target_date}</td>
+                    <td className="p-3">{b.guest_count} pax</td>
+                    <td className="p-3 text-emerald-400">{formatPHP(b.deposit_amount_php)}</td>
+                    <td className="p-3 text-purple-300">{b.promoter_code || '—'}</td>
+                    <td className="p-3 text-zinc-400">{b.payment_method || 'GCASH'}</td>
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">
+                        {b.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'ledger' && (
+        <div className="space-y-4">
+          <div className="p-5 rounded-3xl bg-zinc-900 border border-zinc-800">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-sm font-bold text-white">Double-Entry Financial Journal</h3>
               </div>
+              <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono">
+                Balanced (Debits == Credits)
+              </span>
+            </div>
+            <p className="text-xs text-zinc-400">
+              Transactions are recorded using immutable double-entry ledger postings with SHA-256 block hash verification.
+            </p>
+          </div>
 
-              <div>
-                <label className="block text-xs text-white/50 mb-1">Upfront Reservation Deposit (₱)</label>
-                <input
-                  type="number"
-                  required
-                  min={100}
-                  step={100}
-                  value={editDeposit}
-                  onChange={e => setEditDeposit(Number(e.target.value))}
-                  className="w-full bg-[#111] border border-white/15 rounded-xl p-3 text-sm text-emerald-400 font-bold focus:outline-none focus:border-[#FF2E88]"
-                />
-              </div>
-
-              {saveSuccess && (
-                <p className="text-xs text-emerald-400 font-bold">✓ Pricing updated and saved to database!</p>
-              )}
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingType(null)}
-                  className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 text-xs font-semibold border border-white/10 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#FF2E88] to-[#8B5CF6] hover:opacity-90 text-white text-xs font-bold shadow-[0_0_15px_rgba(255,46,136,0.3)] cursor-pointer"
-                >
-                  Save Tier
-                </button>
-              </div>
-            </form>
+          <div className="space-y-3">
+            {ledgerTx.map(tx => {
+              const postings = ledgerPostings.filter(p => p.transaction_id === tx.id);
+              return (
+                <div key={tx.id} className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 font-mono text-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-orange-400 font-bold">{tx.transaction_ref}</span>
+                    <span className="text-zinc-500 text-[11px]">{tx.timestamp}</span>
+                  </div>
+                  <p className="text-zinc-300">{tx.description}</p>
+                  
+                  <div className="rounded-xl bg-zinc-900/60 p-3 space-y-2 border border-zinc-800/80">
+                    {postings.map(p => (
+                      <div key={p.id} className="flex justify-between items-center text-xs">
+                        <span className="text-zinc-400">{p.account}</span>
+                        <div className="flex items-center space-x-3">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                            p.posting_type === 'DEBIT' ? 'bg-cyan-950 text-cyan-300' : 'bg-amber-950 text-amber-300'
+                          }`}>
+                            {p.posting_type}
+                          </span>
+                          <span className="text-emerald-400 font-semibold">{formatPHP(p.amount_php)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

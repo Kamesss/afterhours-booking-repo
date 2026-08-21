@@ -1,54 +1,63 @@
-import { ClubModel } from '../models/ClubModel';
-import { TableTypeModel } from '../models/TableTypeModel';
-import { ClubTableModel } from '../models/ClubTableModel';
+import { VenueModel } from '../models/VenueModel';
+import { TableModel } from '../models/TableModel';
 import { BookingModel } from '../models/BookingModel';
 import { GuestListModel } from '../models/GuestListModel';
 import { UserModel } from '../models/UserModel';
-import { ClubView } from '../views/ClubView';
-import { TableView } from '../views/TableView';
-import { BookingView } from '../views/BookingView';
-import { GuestListView } from '../views/GuestListView';
+import { LedgerModel } from '../models/LedgerModel';
 import { ApiResponseView } from '../views/ApiResponseView';
-import { D1Database } from '../../types';
+import { D1FullExport } from '../../types';
 
 export class SyncController {
-  private clubModel: ClubModel;
-  private tableTypeModel: TableTypeModel;
-  private clubTableModel: ClubTableModel;
+  private venueModel: VenueModel;
+  private tableModel: TableModel;
   private bookingModel: BookingModel;
   private guestListModel: GuestListModel;
   private userModel: UserModel;
+  private ledgerModel: LedgerModel;
 
-  constructor(db: D1Database) {
-    this.clubModel = new ClubModel(db);
-    this.tableTypeModel = new TableTypeModel(db);
-    this.clubTableModel = new ClubTableModel(db);
-    this.bookingModel = new BookingModel(db);
-    this.guestListModel = new GuestListModel(db);
-    this.userModel = new UserModel(db);
+  constructor(
+    venueModel: VenueModel,
+    tableModel: TableModel,
+    bookingModel: BookingModel,
+    guestListModel: GuestListModel,
+    userModel: UserModel,
+    ledgerModel: LedgerModel
+  ) {
+    this.venueModel = venueModel;
+    this.tableModel = tableModel;
+    this.bookingModel = bookingModel;
+    this.guestListModel = guestListModel;
+    this.userModel = userModel;
+    this.ledgerModel = ledgerModel;
   }
 
-  async dumpAll(): Promise<Response> {
+  async getFullDump(): Promise<Response> {
     try {
-      const [clubs, tableTypes, clubTables, bookings, guestList, users] = await Promise.all([
-        this.clubModel.findAll(false),
-        this.tableTypeModel.findByClubId(null),
-        this.clubTableModel.findByClubId(null),
-        this.bookingModel.find({}),
-        this.guestListModel.find({}),
-        this.userModel.findAll(),
+      const [users, venues, tables, bookings, guestlists, ledgerTx, ledgerPostings] = await Promise.all([
+        this.userModel.getAll(),
+        this.venueModel.getAllActive(),
+        this.tableModel.getAll(),
+        this.bookingModel.getAll(),
+        this.guestListModel.getAll(),
+        this.ledgerModel.getAllTransactions(),
+        this.ledgerModel.getAllPostings()
       ]);
 
-      return ApiResponseView.success({
+      const dump: D1FullExport = {
         users,
-        clubs: ClubView.renderList(clubs),
-        table_types: TableView.renderTableTypeList(tableTypes),
-        club_tables: TableView.renderClubTableList(clubTables),
-        bookings: BookingView.renderList(bookings),
-        guest_list: GuestListView.renderList(guestList),
-      });
+        venues,
+        tables,
+        table_bookings: bookings,
+        guestlists,
+        ledger_transactions: ledgerTx,
+        ledger_postings: ledgerPostings,
+        timestamp: new Date().toISOString(),
+        version: '2026.08-cebu-schema'
+      };
+
+      return ApiResponseView.json(dump);
     } catch (err: any) {
-      return ApiResponseView.serverError('Failed to synchronize D1 dataset', err.message);
+      return ApiResponseView.error(`Failed to export D1 state: ${err.message}`, 500);
     }
   }
 }

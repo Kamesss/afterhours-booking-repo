@@ -1,449 +1,341 @@
+// ============================================================================
+// VIP TABLE BOOKING MODAL WITH ATOMIC DOUBLE-BOOKING LOCK & LEDGER POSTING
+// ============================================================================
 import React, { useState } from 'react';
-import { Club, ClubTable, TableType, Booking, DEFAULT_PROMOS } from '../types';
-import { db } from '../lib/storage';
-import { formatPeso, firePassConfetti } from '../lib/formatters';
+import { Venue, TableItem, TableBooking } from '../types';
+import { clientStore } from '../lib/storage';
+import { formatPHP, formatCategory } from '../lib/formatters';
 import { InteractiveFloorPlan } from './InteractiveFloorPlan';
-import { X, Calendar, Clock, Users, Sparkles, Check, CreditCard, ShieldCheck, Tag, AlertCircle } from 'lucide-react';
+import { 
+  ShieldCheck, 
+  Sparkles, 
+  CreditCard, 
+  Users, 
+  Calendar, 
+  Clock, 
+  Lock, 
+  Tag, 
+  X, 
+  ChevronRight, 
+  CheckCircle2, 
+  AlertCircle 
+} from 'lucide-react';
 
-interface BookingModalProps {
-  club: Club;
+interface Props {
+  venue: Venue;
+  initialTable?: TableItem | null;
   onClose: () => void;
-  onBookingSuccess: (booking: Booking) => void;
+  onSuccess: (booking: TableBooking) => void;
 }
 
-export const BookingModal: React.FC<BookingModalProps> = ({
-  club,
+export const BookingModal: React.FC<Props> = ({
+  venue,
+  initialTable,
   onClose,
-  onBookingSuccess,
+  onSuccess
 }) => {
-  const currentUser = db.getCurrentUser();
-  const todayStr = new Date().toISOString().split('T')[0];
-  const tomorrowObj = new Date();
-  tomorrowObj.setDate(tomorrowObj.getDate() + 1);
-  const tomorrowStr = tomorrowObj.toISOString().split('T')[0];
-
-  const [bookingDate, setBookingDate] = useState<string>(todayStr);
-  const [selectedTable, setSelectedTable] = useState<ClubTable | null>(null);
-  const [selectedTableType, setSelectedTableType] = useState<TableType | null>(null);
-  const [arrivalTime, setArrivalTime] = useState<string>('22:30');
-  const [guestCount, setGuestCount] = useState<number>(4);
-  const [specialRequests, setSpecialRequests] = useState<string>('');
-  
-  // Contact details
-  const [name, setName] = useState<string>(currentUser.name);
-  const [email, setEmail] = useState<string>(currentUser.email);
-  const [phone, setPhone] = useState<string>(currentUser.phone || '+63 917 ');
-
-  // Ambassador Promo Code
-  const [promoCodeInput, setPromoCodeInput] = useState<string>('CEBUVIP');
-  const [appliedPromo, setAppliedPromo] = useState<typeof DEFAULT_PROMOS[0] | null>(DEFAULT_PROMOS[0]);
-  const [promoError, setPromoError] = useState<string>('');
-
-  // Payment Method
-  const [paymentMethod, setPaymentMethod] = useState<'GCash' | 'Maya' | 'Card' | 'Club Pay at Door'>('GCash');
+  const [selectedDate, setSelectedDate] = useState<string>('2026-08-21');
+  const [selectedTable, setSelectedTable] = useState<TableItem | null>(initialTable || null);
+  const [guestCount, setGuestCount] = useState<number>(initialTable ? initialTable.capacity : 6);
+  const [promoterCode, setPromoterCode] = useState<string>('');
+  const [promoterVerified, setPromoterVerified] = useState<boolean>(false);
+  const [promoterName, setPromoterName] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<'GCASH' | 'MAYA' | 'CARD'>('GCASH');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const tableTypes = db.getTableTypes(club.id);
+  const tables = clientStore.getTablesByVenue(venue.id);
+  const existingBookings = clientStore.getBookings(venue.id, selectedDate);
+  const bookedTableIds = existingBookings
+    .filter(b => b.status === 'CONFIRMED' || b.status === 'CHECKED_IN')
+    .map(b => b.table_id);
 
-  const handleApplyPromo = () => {
-    const code = promoCodeInput.trim().toUpperCase();
-    const found = DEFAULT_PROMOS.find(p => p.code === code && (!p.club_id || p.club_id === club.id));
-    if (found) {
-      setAppliedPromo(found);
-      setPromoError('');
+  const currentUser = clientStore.getCurrentUser();
+
+  const handleVerifyPromoter = async () => {
+    if (!promoterCode.trim()) return;
+    const cleanCode = promoterCode.trim().toUpperCase();
+    try {
+      const res = await fetch(`/api/promoters/${cleanCode}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data) {
+          setPromoterVerified(true);
+          setPromoterName(json.data.full_name);
+          setErrorMsg(null);
+          return;
+        }
+      }
+    } catch (e) {}
+
+    // Fallback store check
+    const matched = clientStore.getUsers().find(u => u.promoter_code === cleanCode);
+    if (matched) {
+      setPromoterVerified(true);
+      setPromoterName(matched.full_name);
+      setErrorMsg(null);
     } else {
-      setAppliedPromo(null);
-      setPromoError('Invalid or expired ambassador code');
+      setPromoterVerified(false);
+      setPromoterName('');
+      setErrorMsg('Promoter referral code not found. You can still proceed without a code.');
     }
   };
 
-  const handleSelectTable = (table: ClubTable, tableType: TableType) => {
+  const handleTablePick = (table: TableItem) => {
     setSelectedTable(table);
-    setSelectedTableType(tableType);
-    if (guestCount > tableType.max_guests) {
-      setGuestCount(tableType.max_guests);
-    }
-    setErrorMessage('');
+    setGuestCount(Math.min(guestCount, table.capacity));
+    setErrorMsg(null);
   };
 
-  // Financial calculations
-  const rawMinSpend = selectedTableType?.min_spend_cents || 0;
-  const rawDeposit = selectedTableType?.deposit_cents || 0;
-  const discountRate = appliedPromo ? (appliedPromo.discount_deposit_percent / 100) : 0;
-  const finalDeposit = Math.round(rawDeposit * (1 - discountRate));
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedTable || !selectedTableType) {
-      setErrorMessage('Please select a table on the floor plan above.');
+  const handleConfirmBooking = async () => {
+    if (!selectedTable) {
+      setErrorMsg('Please select a VIP table on the floor plan.');
       return;
     }
 
-    if (!name.trim() || !email.trim()) {
-      setErrorMessage('Please fill in your contact information.');
+    // Atomic double-booking lock check
+    if (clientStore.isTableBooked(selectedTable.id, selectedDate)) {
+      setErrorMsg('This table was just reserved by another guest for this date. Please pick another table.');
       return;
     }
 
     setIsSubmitting(true);
-    setErrorMessage('');
+    setErrorMsg(null);
 
     try {
-      const res = await db.createBooking({
-        club_id: club.id,
+      const booking = await clientStore.createBooking({
+        venue_id: venue.id,
         table_id: selectedTable.id,
-        user_id: currentUser.id,
-        booking_date: bookingDate,
-        arrival_time: arrivalTime,
+        target_date: selectedDate,
         guest_count: guestCount,
-        min_spend_cents: rawMinSpend,
-        deposit_paid_cents: finalDeposit,
-        special_requests: specialRequests,
-        ambassador_promo_code: appliedPromo?.code,
-        customer_name: name,
-        customer_email: email,
-        customer_phone: phone,
-        payment_method: paymentMethod,
+        deposit_amount_php: selectedTable.deposit_required_php,
+        min_spend_php: selectedTable.min_spend_php,
+        promoter_code: promoterVerified ? promoterCode.trim().toUpperCase() : null,
+        payment_method: paymentMethod
       });
 
-      setIsSubmitting(false);
-
-      if (!res.success || !res.booking) {
-        setErrorMessage(res.error || 'Failed to complete reservation. Table may be locked.');
-        return;
-      }
-
-      firePassConfetti();
-      onBookingSuccess(res.booking);
+      onSuccess(booking);
     } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to complete reservation hold.');
       setIsSubmitting(false);
-      setErrorMessage(err.message || 'Error creating booking in database.');
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6">
-      <div className="relative w-full max-w-4xl bg-[#0A0A0B] border border-white/10 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+      <div className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-5xl my-8 overflow-hidden shadow-2xl flex flex-col">
         
         {/* Modal Header */}
-        <div className="p-4 sm:p-6 border-b border-white/10 bg-[#050505] flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FF2E88]/15 border border-[#FF2E88]/30 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-[#FF2E88]" />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-950/70">
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                VIP Bottle Service & Table Hold
+              </span>
+              <span className="text-xs text-zinc-500">•</span>
+              <span className="text-xs text-zinc-400 font-mono">{venue.address}</span>
             </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
-                Reserve VIP Table &bull; {club.name}
-              </h2>
-              <p className="text-xs text-white/50">
-                100% In-App Deposit &bull; Guaranteed Table Lock (No Double Booking)
-              </p>
-            </div>
+            <h2 className="text-xl font-bold text-white mt-1">{venue.name}</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-6 flex-1">
+        {/* Modal Body */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 divide-y lg:divide-y-0 lg:divide-x divide-zinc-800">
           
-          {/* Step 1: Select Night & Date */}
-          <div className="space-y-3">
-            <label className="block text-xs font-bold uppercase tracking-wider text-white/80 flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-[#FF2E88]" />
-              1. Select Date of Night Out
-            </label>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setBookingDate(todayStr)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  bookingDate === todayStr
-                    ? 'bg-gradient-to-r from-[#FF2E88] to-[#8B5CF6] text-white shadow-[0_0_15px_rgba(255,46,136,0.3)]'
-                    : 'bg-white/5 text-white/70 hover:bg-white/10 border border-white/10'
-                }`}
-              >
-                Tonight ({todayStr})
-              </button>
-              <button
-                type="button"
-                onClick={() => setBookingDate(tomorrowStr)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  bookingDate === tomorrowStr
-                    ? 'bg-gradient-to-r from-[#FF2E88] to-[#8B5CF6] text-white shadow-[0_0_15px_rgba(255,46,136,0.3)]'
-                    : 'bg-white/5 text-white/70 hover:bg-white/10 border border-white/10'
-                }`}
-              >
-                Tomorrow ({tomorrowStr})
-              </button>
-              <input
-                type="date"
-                value={bookingDate}
-                min={todayStr}
-                onChange={e => setBookingDate(e.target.value)}
-                className="bg-[#111] border border-white/15 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF2E88]"
-              />
-            </div>
-          </div>
-
-          {/* Step 2: Interactive Table Selection Floor Plan */}
-          <div className="space-y-3">
+          {/* Left Column: Floor Plan & Table Selection */}
+          <div className="lg:col-span-7 p-6 space-y-4 bg-zinc-900/40">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold uppercase tracking-wider text-white/80 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
-                2. Tap Table to Select on Live Blueprint
-              </label>
-              {selectedTable && (
-                <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5" /> Selected: {selectedTable.table_number}
-                </span>
-              )}
+              <h3 className="text-sm font-semibold text-zinc-200">Interactive Venue Floor Plan</h3>
+              <div className="flex items-center space-x-2">
+                <Calendar className="w-4 h-4 text-orange-400" />
+                <select
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  className="bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-zinc-200 font-mono focus:outline-none focus:border-orange-500"
+                >
+                  <option value="2026-08-21">Tonight (2026-08-21)</option>
+                  <option value="2026-08-22">Tomorrow (2026-08-22)</option>
+                  <option value="2026-08-23">Sunday (2026-08-23)</option>
+                </select>
+              </div>
             </div>
 
             <InteractiveFloorPlan
-              club={club}
-              selectedDate={bookingDate}
-              selectedTable={selectedTable}
-              onSelectTable={handleSelectTable}
+              tables={tables}
+              selectedTableId={selectedTable?.id || null}
+              onSelectTable={handleTablePick}
+              bookedTableIds={bookedTableIds}
+              currentDate={selectedDate}
             />
+
+            {selectedTable ? (
+              <div className="p-4 rounded-2xl bg-zinc-950 border border-orange-500/30 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-orange-400">Selected Table</span>
+                  <div className="flex items-center space-x-2">
+                    <h4 className="text-base font-bold text-white">{selectedTable.table_number}</h4>
+                    <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono">
+                      {formatCategory(selectedTable.category)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-0.5">Capacity up to {selectedTable.capacity} guests</p>
+                </div>
+
+                <div className="text-right font-mono">
+                  <div className="text-xs text-zinc-400">Consumable Min Spend: <strong className="text-emerald-400">{formatPHP(selectedTable.min_spend_php)}</strong></div>
+                  <div className="text-xs text-amber-400 font-semibold mt-0.5">Lock Deposit: {formatPHP(selectedTable.deposit_required_php)}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-zinc-950/60 border border-dashed border-zinc-800 text-center text-xs text-zinc-400">
+                Click on any available table on the floor plan above to select it.
+              </div>
+            )}
           </div>
 
-          {/* Step 3: Time & Guests */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-white/80 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-400" />
-                3. Expected Arrival Time
-              </label>
-              <select
-                value={arrivalTime}
-                onChange={e => setArrivalTime(e.target.value)}
-                className="w-full bg-[#111] border border-white/15 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-[#FF2E88]"
-              >
-                <option value="21:00">9:00 PM (Early Bird Entry)</option>
-                <option value="21:30">9:30 PM</option>
-                <option value="22:00">10:00 PM</option>
-                <option value="22:30">10:30 PM (Recommended)</option>
-                <option value="23:00">11:00 PM (Main Warmup)</option>
-                <option value="23:30">11:30 PM (Peak Headliner)</option>
-                <option value="00:00">12:00 Midnight</option>
-              </select>
-            </div>
+          {/* Right Column: Checkout & Deposit Holding */}
+          <div className="lg:col-span-5 p-6 flex flex-col justify-between space-y-6 bg-zinc-950/80">
+            <div className="space-y-5">
+              <h3 className="text-sm font-semibold text-zinc-200">Reservation Details</h3>
 
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-white/80 flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#8B5CF6]" />
-                Number of Guests (Pax)
-              </label>
-              <div className="flex items-center space-x-3 bg-[#111] border border-white/15 rounded-xl p-1.5">
-                <button
-                  type="button"
-                  onClick={() => setGuestCount(Math.max(1, guestCount - 1))}
-                  className="w-9 h-9 rounded-lg bg-white/10 text-white font-bold text-lg hover:bg-white/20 flex items-center justify-center cursor-pointer"
-                >
-                  -
-                </button>
-                <span className="flex-1 text-center font-bold text-sm text-white">
-                  {guestCount} Guests {selectedTableType ? `(Max ${selectedTableType.max_guests})` : ''}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setGuestCount(Math.min(selectedTableType?.max_guests || 20, guestCount + 1))}
-                  className="w-9 h-9 rounded-lg bg-white/10 text-white font-bold text-lg hover:bg-white/20 flex items-center justify-center cursor-pointer"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Step 4: Contact info */}
-          <div className="space-y-3 bg-[#050505] border border-white/10 rounded-2xl p-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-white/80">
-              4. VIP Reservation Holder Information
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Guest Count */}
               <div>
-                <label className="block text-[11px] text-white/50 mb-1">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  className="w-full bg-[#111] border border-white/15 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#FF2E88]"
-                />
+                <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                  Party Size (Guests)
+                </label>
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="number"
+                    min="1"
+                    max={selectedTable?.capacity || 15}
+                    value={guestCount}
+                    onChange={e => setGuestCount(Number(e.target.value))}
+                    className="w-24 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white font-mono text-center focus:outline-none focus:border-orange-500"
+                  />
+                  <span className="text-xs text-zinc-500">
+                    Max capacity: {selectedTable ? selectedTable.capacity : '—'} pax
+                  </span>
+                </div>
               </div>
+
+              {/* Promoter Code */}
               <div>
-                <label className="block text-[11px] text-white/50 mb-1">Email (for QR Pass)</label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="w-full bg-[#111] border border-white/15 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#FF2E88]"
-                />
+                <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                  Promoter Referral Code (Optional)
+                </label>
+                <div className="flex space-x-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder="e.g. CEBU_VIP_CARLO"
+                      value={promoterCode}
+                      onChange={e => {
+                        setPromoterCode(e.target.value);
+                        setPromoterVerified(false);
+                      }}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-mono text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleVerifyPromoter}
+                    className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-200 transition"
+                  >
+                    Apply
+                  </button>
+                </div>
+                {promoterVerified && (
+                  <p className="text-xs text-emerald-400 flex items-center space-x-1 mt-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Referred by <strong>{promoterName}</strong> (+10% credit applied)</span>
+                  </p>
+                )}
               </div>
+
+              {/* Payment Gateway Method */}
               <div>
-                <label className="block text-[11px] text-white/50 mb-1">Mobile / WhatsApp</label>
-                <input
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  className="w-full bg-[#111] border border-white/15 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#FF2E88]"
-                />
+                <label className="block text-xs font-medium text-zinc-400 mb-2">
+                  Deposit Lock Gateway (Philippine Payment Rails)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['GCASH', 'MAYA', 'CARD'] as const).map(method => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setPaymentMethod(method)}
+                      className={`p-3 rounded-xl border flex flex-col items-center justify-center transition ${
+                        paymentMethod === method
+                          ? 'bg-orange-500/20 border-orange-500 text-white font-bold'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                      }`}
+                    >
+                      <CreditCard className="w-4 h-4 mb-1" />
+                      <span className="text-xs font-mono">{method}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* Financial Breakdown */}
+              <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-2 text-xs font-mono">
+                <div className="flex justify-between text-zinc-400">
+                  <span>Minimum Consumable Spend:</span>
+                  <span className="text-zinc-200">{selectedTable ? formatPHP(selectedTable.min_spend_php) : '₱0'}</span>
+                </div>
+                <div className="flex justify-between text-zinc-400">
+                  <span>Required Upfront Lock Deposit:</span>
+                  <span className="text-amber-400 font-semibold">{selectedTable ? formatPHP(selectedTable.deposit_required_php) : '₱0'}</span>
+                </div>
+                <div className="flex justify-between text-zinc-400">
+                  <span>Payable at Venue Door:</span>
+                  <span className="text-zinc-300">{selectedTable ? formatPHP(selectedTable.min_spend_php - selectedTable.deposit_required_php) : '₱0'}</span>
+                </div>
+                <div className="pt-2 border-t border-zinc-800 flex justify-between text-sm">
+                  <span className="text-white font-bold">Total Due Now:</span>
+                  <span className="text-orange-400 font-bold">{selectedTable ? formatPHP(selectedTable.deposit_required_php) : '₱0'}</span>
+                </div>
+              </div>
+
+              {errorMsg && (
+                <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-800 text-xs text-rose-300 flex items-start space-x-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
             </div>
 
-            <div>
-              <label className="block text-[11px] text-white/50 mb-1">Special Celebration / Bottle Requests (Optional)</label>
-              <input
-                type="text"
-                placeholder="e.g. Birthday celebration, please prepare sparklers with Don Julio 1942"
-                value={specialRequests}
-                onChange={e => setSpecialRequests(e.target.value)}
-                className="w-full bg-[#111] border border-white/15 rounded-xl p-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#FF2E88]"
-              />
-            </div>
-          </div>
-
-          {/* Step 5: Ambassador Code & Perk */}
-          <div className="space-y-3 bg-gradient-to-r from-[#FF2E88]/15 via-[#111] to-[#050505] border border-[#FF2E88]/30 rounded-2xl p-4">
-            <label className="block text-xs font-bold uppercase tracking-wider text-[#FF2E88] flex items-center gap-1.5">
-              <Tag className="w-4 h-4 text-amber-300" />
-              5. Ambassador Promo Code & Perks
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={promoCodeInput}
-                onChange={e => setPromoCodeInput(e.target.value)}
-                placeholder="Try CEBUVIP or AFTERHOURS10"
-                className="flex-1 uppercase font-mono bg-[#111] border border-white/15 rounded-xl px-3 py-2 text-xs text-white tracking-widest focus:outline-none focus:border-[#FF2E88]"
-              />
+            {/* Submit Action */}
+            <div className="pt-4 border-t border-zinc-800">
               <button
                 type="button"
-                onClick={handleApplyPromo}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF2E88] to-[#8B5CF6] hover:opacity-90 text-white text-xs font-bold transition-all cursor-pointer shadow-[0_0_10px_rgba(255,46,136,0.3)]"
+                onClick={handleConfirmBooking}
+                disabled={!selectedTable || isSubmitting}
+                className={`w-full py-3.5 px-4 rounded-2xl flex items-center justify-center space-x-2 font-bold text-sm transition shadow-lg ${
+                  !selectedTable || isSubmitting
+                    ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-400 hover:to-rose-400 text-black shadow-orange-500/20'
+                }`}
               >
-                Apply Code
+                <Lock className="w-4 h-4" />
+                <span>{isSubmitting ? 'Securing Distributed Hold...' : `Lock Table (${selectedTable ? formatPHP(selectedTable.deposit_required_php) : '₱0'})`}</span>
+                <ChevronRight className="w-4 h-4" />
               </button>
+
+              <p className="text-[11px] text-zinc-500 text-center mt-2 flex items-center justify-center space-x-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Encrypted double-entry ledger guarantee & 10m atomic hold</span>
+              </p>
             </div>
 
-            {appliedPromo && (
-              <div className="p-2.5 bg-[#FF2E88]/10 border border-[#FF2E88]/30 rounded-xl text-xs text-white/90 space-y-1">
-                <div className="font-bold flex items-center gap-1.5 text-emerald-400">
-                  <Check className="w-4 h-4" /> Code '{appliedPromo.code}' Active: {appliedPromo.discount_deposit_percent}% Off Upfront Deposit!
-                </div>
-                <p className="text-white/80 text-[11px]">
-                  🎁 Bonus Perk: <strong>{appliedPromo.complimentary_item}</strong>
-                </p>
-              </div>
-            )}
-            {promoError && (
-              <p className="text-xs text-red-400">{promoError}</p>
-            )}
           </div>
 
-          {/* Step 6: Payment Method & Breakdown */}
-          <div className="space-y-3">
-            <label className="block text-xs font-bold uppercase tracking-wider text-white/80 flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-emerald-400" />
-              6. Payment Method for Upfront Deposit
-            </label>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {(['GCash', 'Maya', 'Card', 'Club Pay at Door'] as const).map(method => (
-                <button
-                  key={method}
-                  type="button"
-                  onClick={() => setPaymentMethod(method)}
-                  className={`p-3 rounded-xl border text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
-                    paymentMethod === method
-                      ? 'bg-emerald-950/50 border-emerald-500 text-emerald-300 ring-2 ring-emerald-500/30'
-                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
-                  }`}
-                >
-                  <span>{method === 'GCash' ? '🔵 GCash' : method === 'Maya' ? '🟢 Maya' : method === 'Card' ? '💳 Debit/Credit' : '🚪 Pay at Door'}</span>
-                  <span className="text-[10px] text-white/40 font-normal">
-                    {method === 'Club Pay at Door' ? 'Held until 11PM' : 'Instant Table Lock'}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Pricing Summary Card */}
-          {selectedTableType && (
-            <div className="p-4 bg-[#050505] border border-white/10 rounded-2xl space-y-2 text-xs">
-              <div className="flex justify-between text-white/50">
-                <span>Selected Table:</span>
-                <span className="text-white font-medium">{selectedTable?.table_number} ({selectedTableType.name})</span>
-              </div>
-              <div className="flex justify-between text-white/50">
-                <span>Minimum Consumable Spend:</span>
-                <span className="text-white font-bold font-mono">{formatPeso(rawMinSpend)}</span>
-              </div>
-              <div className="flex justify-between text-white/50">
-                <span>Standard Upfront Deposit:</span>
-                <span className="text-white/70 font-mono">{formatPeso(rawDeposit)}</span>
-              </div>
-              {appliedPromo && (
-                <div className="flex justify-between text-emerald-400 font-mono">
-                  <span>Ambassador Discount ({appliedPromo.discount_deposit_percent}%):</span>
-                  <span>-{formatPeso(rawDeposit - finalDeposit)}</span>
-                </div>
-              )}
-              <div className="pt-2 border-t border-white/10 flex justify-between items-center">
-                <div>
-                  <span className="text-sm font-extrabold text-white">Deposit Due Now:</span>
-                  <p className="text-[10px] text-white/40">100% credited towards your drinks tonight</p>
-                </div>
-                <span className="text-xl font-black text-emerald-400 font-mono">{formatPeso(finalDeposit)}</span>
-              </div>
-            </div>
-          )}
-
-          {errorMessage && (
-            <div className="p-3 bg-red-950/60 border border-red-800 rounded-xl text-xs text-red-300 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          {/* Submit Action */}
-          <div className="pt-2">
-            <button
-              id="confirm-reservation-btn"
-              type="submit"
-              disabled={isSubmitting || !selectedTable}
-              className={`w-full py-4 rounded-2xl font-black text-sm tracking-wide transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer ${
-                selectedTable && !isSubmitting
-                  ? 'bg-gradient-to-r from-[#FF2E88] via-[#8B5CF6] to-[#FF2E88] hover:opacity-90 text-white shadow-[0_0_25px_rgba(255,46,136,0.4)] active:scale-[0.99]'
-                  : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/10'
-              }`}
-            >
-              {isSubmitting ? (
-                <span>Locking Table in Cebu Database...</span>
-              ) : (
-                <>
-                  <ShieldCheck className="w-5 h-5 text-amber-300" />
-                  <span>
-                    {selectedTable ? `CONFIRM RESERVATION & PAY ${formatPeso(finalDeposit)} DEPOSIT` : 'SELECT TABLE ABOVE TO PROCEED'}
-                  </span>
-                </>
-              )}
-            </button>
-            <p className="text-center text-[11px] text-white/40 mt-2">
-              🔒 AfterHours zero-risk guarantee: Free cancellation up to 4 hours before club opening.
-            </p>
-          </div>
-
-        </form>
+        </div>
 
       </div>
     </div>

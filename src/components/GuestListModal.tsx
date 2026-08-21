@@ -1,243 +1,203 @@
+// ============================================================================
+// GUESTLIST PASS MODAL WITH CUTOFF ENFORCEMENT & INSTANT QR ISSUANCE
+// ============================================================================
 import React, { useState } from 'react';
-import { Club, GuestListEntry } from '../types';
-import { db } from '../lib/storage';
-import { firePassConfetti } from '../lib/formatters';
-import { X, Gift, Sparkles, Clock, Users, Check, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Venue, GuestlistEntry } from '../types';
+import { clientStore } from '../lib/storage';
+import { Sparkles, Users, Clock, Calendar, CheckCircle2, ShieldCheck, X, ChevronRight, AlertCircle } from 'lucide-react';
 
-interface GuestListModalProps {
-  club: Club;
+interface Props {
+  venue: Venue;
   onClose: () => void;
-  onSuccess: (entry: GuestListEntry) => void;
+  onSuccess: (pass: GuestlistEntry) => void;
 }
 
-export const GuestListModal: React.FC<GuestListModalProps> = ({
-  club,
+export const GuestListModal: React.FC<Props> = ({
+  venue,
   onClose,
-  onSuccess,
+  onSuccess
 }) => {
-  const currentUser = db.getCurrentUser();
-  const todayStr = new Date().toISOString().split('T')[0];
-  const tomorrowObj = new Date();
-  tomorrowObj.setDate(tomorrowObj.getDate() + 1);
-  const tomorrowStr = tomorrowObj.toISOString().split('T')[0];
-
-  const [eventDate, setEventDate] = useState<string>(todayStr);
-  const [guestName, setGuestName] = useState<string>(currentUser.name);
-  const [guestEmail, setGuestEmail] = useState<string>(currentUser.email);
-  const [guestPhone, setGuestPhone] = useState<string>(currentUser.phone || '+63 917 ');
-  const [pax, setPax] = useState<number>(2);
-  const [arrivalTimeEstimate, setArrivalTimeEstimate] = useState<string>('22:30');
+  const [selectedDate, setSelectedDate] = useState<string>('2026-08-21');
+  const [guestCount, setGuestCount] = useState<number>(2);
+  const [promoterCode, setPromoterCode] = useState<string>('');
+  const [promoterVerified, setPromoterVerified] = useState<boolean>(false);
+  const [promoterName, setPromoterName] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!guestName.trim() || !guestEmail.trim()) {
-      setError('Please provide your name and email for the door list.');
-      return;
+  const currentUser = clientStore.getCurrentUser();
+
+  const handleVerifyPromoter = async () => {
+    if (!promoterCode.trim()) return;
+    const cleanCode = promoterCode.trim().toUpperCase();
+    const matched = clientStore.getUsers().find(u => u.promoter_code === cleanCode);
+    if (matched) {
+      setPromoterVerified(true);
+      setPromoterName(matched.full_name);
+      setErrorMsg(null);
+    } else {
+      setPromoterVerified(false);
+      setPromoterName('');
+      setErrorMsg('Promoter code not found. Pass will still be created with standard venue entry.');
     }
+  };
 
+  const handleClaimPass = async () => {
     setIsSubmitting(true);
-    setError('');
+    setErrorMsg(null);
 
     try {
-      const res = await db.joinGuestList({
-        club_id: club.id,
-        user_id: currentUser.id,
-        event_date: eventDate,
-        guest_name: guestName,
-        guest_email: guestEmail,
-        guest_phone: guestPhone,
-        pax,
-        arrival_time_estimate: arrivalTimeEstimate,
+      const pass = await clientStore.createGuestlistPass({
+        venue_id: venue.id,
+        target_date: selectedDate,
+        guest_count: guestCount,
+        promoter_code: promoterVerified ? promoterCode.trim().toUpperCase() : null,
+        cutoff_time: venue.guestlist_cutoff_time
       });
 
-      setIsSubmitting(false);
-
-      if (!res.success || !res.entry) {
-        setError(res.error || 'Failed to generate guest list pass.');
-        return;
-      }
-
-      firePassConfetti();
-      onSuccess(res.entry);
+      onSuccess(pass);
     } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to claim door pass.');
       setIsSubmitting(false);
-      setError(err.message || 'Failed to generate guest list pass.');
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6">
-      <div className="relative w-full max-w-lg bg-[#0A0A0B] border border-white/10 rounded-3xl shadow-2xl overflow-hidden my-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+      <div className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
         
         {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-white/10 bg-[#050505] flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-              <Gift className="w-5 h-5 text-emerald-400" />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-950/70">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-orange-400">
+              <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-white">
-                Ambassador Guest List Pass
-              </h2>
-              <p className="text-xs text-white/50">
-                {club.name} &bull; Free Door Entry & Ambassador Perks
-              </p>
+              <h3 className="font-bold text-white text-base">VIP Guestlist Pass</h3>
+              <p className="text-xs text-zinc-400">{venue.name}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="p-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-5">
-          
-          {/* Automated Ambassador Perk Box */}
-          <div className="bg-gradient-to-r from-emerald-950/40 via-[#111] to-[#050505] border border-emerald-500/30 rounded-2xl p-3.5 space-y-1.5 shadow-sm">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>Tonight's Ambassador Perk Unlocked:</span>
+        {/* Content */}
+        <div className="p-6 space-y-5">
+          {/* Free Door Entry Badge */}
+          <div className="p-3.5 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex items-center space-x-3">
+            <CheckCircle2 className="w-5 h-5 text-orange-400 flex-shrink-0" />
+            <div className="text-xs">
+              <p className="font-bold text-orange-300">Complimentary Door Entry</p>
+              <p className="text-zinc-400">Entry valid before strict door cutoff time: <strong className="text-white font-mono">{venue.guestlist_cutoff_time}</strong></p>
             </div>
-            <p className="text-xs text-white font-medium">
-              {club.ambassador_perks[0] || 'Free Express Door Admission before midnight'}
-            </p>
-            <p className="text-[11px] text-white/50">
-              Show your digital QR pass to the host at the entrance for immediate validation.
-            </p>
           </div>
 
-          {/* Date Picker */}
-          <div className="space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-white/80">
-              Select Date of Entry
+          {/* Date Selector */}
+          <div>
+            <label className="block text-xs font-medium text-zinc-400 mb-1.5 flex items-center space-x-1.5">
+              <Calendar className="w-3.5 h-3.5 text-orange-400" />
+              <span>Target Night</span>
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setEventDate(todayStr)}
-                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  eventDate === todayStr
-                    ? 'bg-gradient-to-r from-[#FF2E88] to-[#8B5CF6] text-white shadow-[0_0_15px_rgba(255,46,136,0.3)]'
-                    : 'bg-white/5 text-white/70 border border-white/10 hover:bg-white/10'
-                }`}
-              >
-                Tonight ({todayStr})
-              </button>
-              <button
-                type="button"
-                onClick={() => setEventDate(tomorrowStr)}
-                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  eventDate === tomorrowStr
-                    ? 'bg-gradient-to-r from-[#FF2E88] to-[#8B5CF6] text-white shadow-[0_0_15px_rgba(255,46,136,0.3)]'
-                    : 'bg-white/5 text-white/70 border border-white/10 hover:bg-white/10'
-                }`}
-              >
-                Tomorrow ({tomorrowStr})
-              </button>
+            <select
+              value={selectedDate}
+              onChange={e => setSelectedDate(e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-mono text-zinc-200 focus:outline-none focus:border-orange-500"
+            >
+              <option value="2026-08-21">Tonight (Friday, Aug 21, 2026)</option>
+              <option value="2026-08-22">Saturday Night (Aug 22, 2026)</option>
+              <option value="2026-08-23">Sunday Special (Aug 23, 2026)</option>
+            </select>
+          </div>
+
+          {/* Pax */}
+          <div>
+            <label className="block text-xs font-medium text-zinc-400 mb-1.5 flex items-center space-x-1.5">
+              <Users className="w-3.5 h-3.5 text-orange-400" />
+              <span>Party Size</span>
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {[1, 2, 3, 4].map(num => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => setGuestCount(num)}
+                  className={`py-2 rounded-xl text-xs font-mono font-bold border transition ${
+                    guestCount === num
+                      ? 'bg-orange-500 text-black border-orange-400 shadow-md shadow-orange-500/20'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-zinc-700'
+                  }`}
+                >
+                  {num} {num === 1 ? 'Guest' : 'Guests'}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Guest Info */}
-          <div className="space-y-3">
-            <div>
-              <label className="block text-[11px] text-white/50 mb-1">Primary Guest Name (As on ID)</label>
+          {/* Promoter Code */}
+          <div>
+            <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+              Ambassador / Promoter Code
+            </label>
+            <div className="flex space-x-2">
               <input
                 type="text"
-                required
-                value={guestName}
-                onChange={e => setGuestName(e.target.value)}
-                className="w-full bg-[#111] border border-white/15 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#FF2E88]"
+                placeholder="e.g. CEBU_VIP_CARLO"
+                value={promoterCode}
+                onChange={e => {
+                  setPromoterCode(e.target.value);
+                  setPromoterVerified(false);
+                }}
+                className="flex-1 bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-mono text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500"
               />
+              <button
+                type="button"
+                onClick={handleVerifyPromoter}
+                className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-200 transition"
+              >
+                Apply
+              </button>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] text-white/50 mb-1">Email for Digital Pass</label>
-                <input
-                  type="email"
-                  required
-                  value={guestEmail}
-                  onChange={e => setGuestEmail(e.target.value)}
-                  className="w-full bg-[#111] border border-white/15 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#FF2E88]"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] text-white/50 mb-1">Phone Number</label>
-                <input
-                  type="tel"
-                  required
-                  value={guestPhone}
-                  onChange={e => setGuestPhone(e.target.value)}
-                  className="w-full bg-[#111] border border-white/15 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#FF2E88]"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] text-white/50 mb-1">Total Guests (Pax)</label>
-                <select
-                  value={pax}
-                  onChange={e => setPax(Number(e.target.value))}
-                  className="w-full bg-[#111] border border-white/15 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#FF2E88]"
-                >
-                  <option value={1}>1 Person (Solo)</option>
-                  <option value={2}>2 People (Pair)</option>
-                  <option value={3}>3 People</option>
-                  <option value={4}>4 People (Max Guestlist)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] text-white/50 mb-1">Target Arrival</label>
-                <select
-                  value={arrivalTimeEstimate}
-                  onChange={e => setArrivalTimeEstimate(e.target.value)}
-                  className="w-full bg-[#111] border border-white/15 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#FF2E88]"
-                >
-                  <option value="22:00">10:00 PM</option>
-                  <option value="22:30">10:30 PM (Best)</option>
-                  <option value="23:00">11:00 PM</option>
-                  <option value="23:30">11:30 PM (Cutoff)</option>
-                </select>
-              </div>
-            </div>
+            {promoterVerified && (
+              <p className="text-xs text-emerald-400 flex items-center space-x-1 mt-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Attributed to Ambassador <strong>{promoterName}</strong></span>
+              </p>
+            )}
           </div>
 
-          {error && (
-            <div className="p-3 bg-red-950/60 border border-red-800 rounded-xl text-xs text-red-300 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-              <span>{error}</span>
+          {/* Cutoff Warning */}
+          <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-400 space-y-1">
+            <div className="flex items-center space-x-1.5 text-amber-400 font-medium">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Door Cutoff Strict Enforcement</span>
+            </div>
+            <p className="text-[11px]">
+              Present your QR pass at the entrance before <strong className="text-white font-mono">{venue.guestlist_cutoff_time}</strong>. Arrivals past cutoff are subject to standard door cover charge.
+            </p>
+          </div>
+
+          {errorMsg && (
+            <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-800 text-xs text-rose-300 flex items-start space-x-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{errorMsg}</span>
             </div>
           )}
 
           {/* Submit */}
           <button
-            id="generate-guestlist-pass-btn"
-            type="submit"
+            type="button"
+            onClick={handleClaimPass}
             disabled={isSubmitting}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#FF2E88] to-[#8B5CF6] hover:opacity-90 text-white font-black text-sm tracking-wide shadow-[0_0_20px_rgba(255,46,136,0.35)] transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-400 hover:to-rose-400 text-black font-bold text-sm transition shadow-lg shadow-orange-500/20 flex items-center justify-center space-x-2"
           >
-            {isSubmitting ? (
-              <span>Issuing Ambassador Pass...</span>
-            ) : (
-              <>
-                <ShieldCheck className="w-5 h-5 text-amber-300" />
-                <span>CLAIM FREE AMBASSADOR PASS</span>
-              </>
-            )}
+            <span>{isSubmitting ? 'Generating Digital Pass...' : 'Claim Free Guestlist Pass'}</span>
+            <ChevronRight className="w-4 h-4" />
           </button>
-
-          <p className="text-center text-[10px] text-white/40">
-            Age policy: 18+ valid government ID required at door. Dress code strictly enforced.
-          </p>
-
-        </form>
+        </div>
 
       </div>
     </div>

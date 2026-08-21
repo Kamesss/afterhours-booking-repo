@@ -1,118 +1,108 @@
 import { BaseModel } from './BaseModel';
-import { Booking, BookingStatus } from '../../types';
-
-export interface RawBookingRow {
-  id: string;
-  club_id: string;
-  table_id: string;
-  user_id: string;
-  booking_date: string;
-  arrival_time: string;
-  guest_count: number;
-  min_spend_cents: number;
-  deposit_paid_cents: number;
-  status: BookingStatus;
-  special_requests?: string | null;
-  created_at: string;
-  qr_code?: string;
-  ambassador_promo_code?: string;
-  commission_cents?: number;
-  customer_name?: string;
-  customer_email?: string;
-  customer_phone?: string;
-  payment_method?: string;
-  checked_in_at?: string;
-}
+import { TableBooking } from '../../types';
 
 export class BookingModel extends BaseModel {
-  async find(filter: { clubId?: string | null; date?: string | null; userId?: string | null }): Promise<RawBookingRow[]> {
-    const conditions: string[] = [];
-    const params: (string | number)[] = [];
-
-    if (filter.clubId) {
-      conditions.push('club_id = ?');
-      params.push(filter.clubId);
-    }
-    if (filter.date) {
-      conditions.push('booking_date = ?');
-      params.push(filter.date);
-    }
-    if (filter.userId) {
-      conditions.push('user_id = ?');
-      params.push(filter.userId);
-    }
-
-    let sql = 'SELECT * FROM bookings';
-    if (conditions.length > 0) {
-      sql += ' WHERE ' + conditions.join(' AND ');
-    }
-    sql += ' ORDER BY created_at DESC';
-
-    const stmt = this.db.prepare(sql).bind(...params);
-    const { results } = await stmt.all<RawBookingRow>();
-    return results || [];
-  }
-
-  async findById(id: string): Promise<RawBookingRow | null> {
-    const res = await this.db.prepare('SELECT * FROM bookings WHERE id = ?').bind(id).first<RawBookingRow>();
-    return res || null;
-  }
-
-  async checkDoubleBookingConflict(tableId: string, bookingDate: string): Promise<boolean> {
-    const existing = await this.db
+  async getByVenueAndDate(venueId: string, targetDate: string): Promise<TableBooking[]> {
+    const res = await this.db
       .prepare(`
-        SELECT id FROM bookings 
-        WHERE table_id = ? AND booking_date = ? AND status IN ('confirmed', 'pending')
+        SELECT * FROM table_bookings 
+        WHERE venue_id = ? AND target_date = ?
+        ORDER BY created_at DESC
       `)
-      .bind(tableId, bookingDate)
-      .first<{ id: string }>();
-
-    return Boolean(existing);
+      .bind(venueId, targetDate)
+      .all<TableBooking>();
+    return res.results || [];
   }
 
-  async create(data: Partial<Booking>): Promise<RawBookingRow | null> {
-    const id = data.id || `bkg_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
-    const createdAt = BaseModel.getCurrentTimestamp();
-
-    await this.db
+  async getByUser(userId: string): Promise<TableBooking[]> {
+    const res = await this.db
       .prepare(`
-        INSERT INTO bookings (
-          id, club_id, table_id, user_id, booking_date, arrival_time, guest_count,
-          min_spend_cents, deposit_paid_cents, status, special_requests, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        SELECT * FROM table_bookings 
+        WHERE user_id = ?
+        ORDER BY target_date DESC, created_at DESC
+      `)
+      .bind(userId)
+      .all<TableBooking>();
+    return res.results || [];
+  }
+
+  async getAll(): Promise<TableBooking[]> {
+    const res = await this.db
+      .prepare('SELECT * FROM table_bookings ORDER BY created_at DESC')
+      .all<TableBooking>();
+    return res.results || [];
+  }
+
+  async getByRef(bookingRef: string): Promise<TableBooking | null> {
+    const res = await this.db
+      .prepare('SELECT * FROM table_bookings WHERE booking_ref = ?')
+      .bind(bookingRef)
+      .first<TableBooking>();
+    return res;
+  }
+
+  async getById(id: string): Promise<TableBooking | null> {
+    const res = await this.db
+      .prepare('SELECT * FROM table_bookings WHERE id = ?')
+      .bind(id)
+      .first<TableBooking>();
+    return res;
+  }
+
+  async isTableBooked(tableId: string, targetDate: string): Promise<boolean> {
+    const res = await this.db
+      .prepare(`
+        SELECT id FROM table_bookings 
+        WHERE table_id = ? 
+          AND target_date = ? 
+          AND status IN ('CONFIRMED', 'CHECKED_IN')
+      `)
+      .bind(tableId, targetDate)
+      .first<{ id: string }>();
+    return !!res;
+  }
+
+  async insert(booking: TableBooking): Promise<boolean> {
+    const res = await this.db
+      .prepare(`
+        INSERT INTO table_bookings (
+          id, booking_ref, venue_id, table_id, user_id,
+          target_date, guest_count, deposit_amount_php, min_spend_php,
+          status, idempotency_key, hold_expires_at, promoter_code,
+          payment_method, payment_reference, checked_in_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .bind(
-        id,
-        data.club_id,
-        data.table_id,
-        data.user_id,
-        data.booking_date,
-        data.arrival_time || '23:00',
-        Number(data.guest_count || 1),
-        Number(data.min_spend_cents || 0),
-        Number(data.deposit_paid_cents || 0),
-        data.status || 'confirmed',
-        data.special_requests || '',
-        createdAt
+        booking.id,
+        booking.booking_ref,
+        booking.venue_id,
+        booking.table_id,
+        booking.user_id,
+        booking.target_date,
+        booking.guest_count,
+        booking.deposit_amount_php,
+        booking.min_spend_php,
+        booking.status || 'PENDING_PAYMENT',
+        booking.idempotency_key,
+        booking.hold_expires_at || null,
+        booking.promoter_code || null,
+        booking.payment_method || null,
+        booking.payment_reference || null,
+        booking.checked_in_at || null
       )
       .run();
-
-    return this.findById(id);
+    return res.success;
   }
 
-  async updateStatus(id: string, status: BookingStatus, checkedInAt?: string): Promise<RawBookingRow | null> {
-    if (checkedInAt) {
-      await this.db
-        .prepare('UPDATE bookings SET status = ? WHERE id = ?')
-        .bind(status, id)
-        .run();
-    } else {
-      await this.db
-        .prepare('UPDATE bookings SET status = ? WHERE id = ?')
-        .bind(status, id)
-        .run();
-    }
-
-    return this.findById(id);
+  async checkIn(bookingRef: string): Promise<boolean> {
+    const res = await this.db
+      .prepare(`
+        UPDATE table_bookings 
+        SET status = 'CHECKED_IN', checked_in_at = datetime('now') 
+        WHERE booking_ref = ? AND status = 'CONFIRMED'
+      `)
+      .bind(bookingRef)
+      .run();
+    return res.success;
   }
 }

@@ -1,166 +1,180 @@
-export type UserRole = 'user' | 'club_admin' | 'superadmin';
+// ============================================================================
+// AFTERHOURS CEBU NIGHTLIFE AUTOMATION - TYPES & D1 SCHEMA DEFINITION
+// ============================================================================
+
+export type UserRole = 'CUSTOMER' | 'PROMOTER' | 'VENUE_STAFF' | 'VENUE_MANAGER' | 'ADMIN';
 
 export interface User {
-  id: string;
-  name: string;
+  id: string;                               // UUIDv4 or string e.g. 'usr_c01'
   email: string;
-  password_hash?: string;
-  phone?: string;
+  hashed_password?: string;
+  full_name: string;
+  phone_number: string;                    // e.g. '+63 917 849 2011'
   role: UserRole;
-  created_at: string;
+  promoter_code?: string | null;           // e.g. 'CEBU_VIP_CARLO'
+  is_active: number;                       // 1 = true, 0 = false
+  created_at?: string;
+  updated_at?: string;
 }
 
-export interface Club {
-  id: string;
-  owner_id: string;
-  name: string;
-  slug: string;
-  description?: string;
-  address: string;
-  min_age: number;
-  dress_code?: string;
+export interface Venue {
+  id: string;                               // 'ven_kazmik', 'ven_trademark'
+  slug: string;                             // 'kazmik-cebu'
+  name: string;                             // 'Kazmik Club'
+  tagline?: string | null;
+  address: string;                          // 'Skyrise 4B Ground Floor, IT Park, Lahug, Cebu City'
+  open_time: string;                        // '21:00' (9:00 PM)
+  close_time: string;                       // '05:00' (5:00 AM cross-midnight)
+  guestlist_cutoff_time: string;            // '23:30' (11:30 PM)
+  max_capacity: number;                     // e.g. 750
+  current_occupancy: number;                // Live gate headcount
   is_active: number;
-  created_at: string;
-  // UI helper fields with graceful fallbacks
-  area?: string;
-  cover_fee_cents?: number;
-  music_genres?: string[];
-  vibe_tags?: string[];
-  hero_image?: string;
-  gallery?: string[];
-  opening_hours?: string;
-  peak_hours?: string;
-  curator_rating?: number;
-  ambassador_perks?: string[];
-  featured?: boolean;
+  created_at?: string;
+  image_url?: string;                       // Visual asset helper
+  music_genres?: string[];                  // Visual badge helper
 }
 
-export interface TableType {
-  id: string;
-  club_id: string;
-  name: string;
-  description?: string;
-  min_spend_cents: number;
-  deposit_cents: number;
-  max_guests: number;
+export type TableCategory = 'VIP_COUCH' | 'DANCEFLOOR_HIGH' | 'COCKTAIL' | 'OWNER_BOOTH';
+
+export interface TableItem {
+  id: string;                               // 'tbl_kaz_v01'
+  venue_id: string;
+  table_number: string;                     // 'VIP-01', 'B-14'
+  category: TableCategory;
+  capacity: number;                         // Max guests (e.g. 10)
+  min_spend_php: number;                    // Consumable minimum spend (e.g. 25000.00)
+  deposit_required_php: number;             // Upfront lock deposit (e.g. 10000.00)
+  coord_x: number;                          // 2D Floor plan X % (0-100)
+  coord_y: number;                          // 2D Floor plan Y % (0-100)
   is_active: number;
-  // UI helper fields with graceful fallbacks
-  perks?: string[];
-  tier_badge?: 'Standard' | 'VIP' | 'Founder' | 'Ultra VIP' | string;
 }
 
-export interface ClubTable {
-  id: string;
-  club_id: string;
-  table_type_id: string;
-  table_number: string;
-  location_description?: string;
-  is_active: number;
-  // Visual layout position helpers with automatic placement
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  shape?: 'rect' | 'circle' | 'booth';
-}
+export type BookingStatus = 'DRAFT' | 'PENDING_PAYMENT' | 'CONFIRMED' | 'CHECKED_IN' | 'CANCELLED' | 'EXPIRED';
+export type PaymentMethod = 'GCASH' | 'MAYA' | 'CARD';
 
-export type BookingStatus = 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no_show';
-
-export interface Booking {
+export interface TableBooking {
   id: string;
-  club_id: string;
+  booking_ref: string;                      // 'AH-CEB-8921'
+  venue_id: string;
   table_id: string;
   user_id: string;
-  booking_date: string;
-  arrival_time: string;
+  target_date: string;                      // 'YYYY-MM-DD'
   guest_count: number;
-  min_spend_cents: number;
-  deposit_paid_cents: number;
+  deposit_amount_php: number;
+  min_spend_php: number;
   status: BookingStatus;
-  special_requests?: string;
-  created_at: string;
-  qr_code?: string;
-  ambassador_promo_code?: string;
-  commission_cents?: number;
-  customer_name?: string;
-  customer_email?: string;
-  customer_phone?: string;
-  payment_method?: 'GCash' | 'Maya' | 'Card' | 'Club Pay at Door' | string;
-  checked_in_at?: string;
+  idempotency_key: string;
+  hold_expires_at?: string | null;          // ISO string (10m countdown)
+  promoter_code?: string | null;
+  payment_method?: PaymentMethod | string | null;
+  payment_reference?: string | null;
+  checked_in_at?: string | null;
+  created_at?: string;
+  
+  // Joined/client display helpers
+  venue?: Venue;
+  table?: TableItem;
+  user?: User;
 }
 
-export interface GuestListEntry {
+export type GuestlistStatus = 'ACTIVE' | 'CHECKED_IN' | 'EXPIRED_CUTOFF' | 'REVOKED';
+
+export interface GuestlistEntry {
   id: string;
-  club_id: string;
+  pass_ref: string;                         // 'GL-KAZ-4109'
+  venue_id: string;
   user_id: string;
-  event_date: string;
-  guest_name: string;
-  guest_email: string;
-  guest_phone?: string;
-  pax: number;
-  arrival_time_estimate?: string;
-  status: 'valid' | 'checked_in' | 'expired' | 'cancelled';
-  qr_code: string;
-  ambassador_perk?: string;
-  created_at: string;
-  checked_in_at?: string;
+  target_date: string;                      // 'YYYY-MM-DD'
+  guest_count: number;
+  promoter_code?: string | null;
+  status: GuestlistStatus;
+  cutoff_time: string;                      // '23:30'
+  checked_in_at?: string | null;
+  created_at?: string;
+
+  // Joined/client display helpers
+  venue?: Venue;
+  user?: User;
 }
 
-export interface AmbassadorPromo {
-  code: string;
-  discount_deposit_percent: number;
-  complimentary_item: string;
-  club_id?: string;
+export type LedgerReferenceType = 'TABLE_DEPOSIT' | 'PROMOTER_BOUNTY' | 'REFUND' | 'DOOR_COVER';
+
+export interface LedgerTransaction {
+  id: string;
+  transaction_ref: string;                  // 'TXN-20260821-0001'
+  reference_type: LedgerReferenceType;
+  reference_id: string;                     // booking_id or guestlist_id
+  idempotency_key: string;
   description: string;
+  previous_hash: string;                    // SHA-256 block chaining
+  block_hash: string;                       // Cryptographic seal
+  timestamp?: string;
+  postings?: LedgerPosting[];
 }
 
-export const DEFAULT_PROMOS: AmbassadorPromo[] = [
-  {
-    code: 'CEBUVIP',
-    discount_deposit_percent: 15,
-    complimentary_item: 'Complimentary Round of Patron Silver Tequila Shots',
-    description: '15% off upfront deposit + free tequila shots round',
-  },
-  {
-    code: 'MANGOFRESH',
-    discount_deposit_percent: 10,
-    complimentary_item: 'VIP Welcome Cocktail Punch Bowl',
-    description: '10% off table deposit + welcome punch bowl for table',
-  },
-  {
-    code: 'AFTERHOURS10',
-    discount_deposit_percent: 10,
-    complimentary_item: 'Free Premium Bottle Sparkler Presentation',
-    description: 'VIP Bottle Sparkler show + 10% off deposit',
-  }
-];
+export type LedgerAccount = 
+  | 'CASH_GATEWAY_RECEIVABLE'
+  | 'USER_DEPOSIT_HOLDING'
+  | 'VENUE_PAYOUT_PAYABLE'
+  | 'PROMOTER_COMMISSION_PAYABLE'
+  | 'PLATFORM_REVENUE';
 
-// Cloudflare Workers & D1 Database Environment Bindings
-export interface D1Result<T = any> {
+export type PostingType = 'DEBIT' | 'CREDIT';
+
+export interface LedgerPosting {
+  id: string;
+  transaction_id: string;
+  account: LedgerAccount;
+  posting_type: PostingType;
+  amount_php: number;
+}
+
+// ----------------------------------------------------------------------------
+// CLOUDFLARE D1 BINDING INTERFACES
+// ----------------------------------------------------------------------------
+
+export interface D1PreparedStatement {
+  bind(...values: any[]): D1PreparedStatement;
+  first<T = unknown>(colName?: string): Promise<T | null>;
+  all<T = unknown>(): Promise<D1Result<T>>;
+  run<T = unknown>(): Promise<D1Response>;
+}
+
+export interface D1Result<T = unknown> {
   results?: T[];
-  success?: boolean;
+  success: boolean;
   meta?: any;
   error?: string;
 }
 
-export interface D1PreparedStatement {
-  bind(...values: any[]): D1PreparedStatement;
-  first<T = any>(colName?: string): Promise<T | null>;
-  all<T = any>(): Promise<D1Result<T>>;
-  run<T = any>(): Promise<D1Result<T>>;
+export interface D1Response {
+  success: boolean;
+  meta?: any;
+  error?: string;
 }
 
 export interface D1Database {
   prepare(query: string): D1PreparedStatement;
   dump(): Promise<ArrayBuffer>;
-  batch<T = any>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]>;
-  exec<T = any>(query: string): Promise<D1Result<T>>;
+  batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]>;
+  exec<T = unknown>(query: string): Promise<D1Response>;
 }
 
 export interface Env {
   DB: D1Database;
-  ASSETS: {
+  ASSETS?: {
     fetch: (request: Request) => Promise<Response>;
   };
 }
 
+export interface D1FullExport {
+  users: User[];
+  venues: Venue[];
+  tables: TableItem[];
+  table_bookings: TableBooking[];
+  guestlists: GuestlistEntry[];
+  ledger_transactions: LedgerTransaction[];
+  ledger_postings: LedgerPosting[];
+  timestamp: string;
+  version: string;
+}

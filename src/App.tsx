@@ -1,6 +1,9 @@
+// ============================================================================
+// AFTERHOURS CEBU - MAIN APPLICATION ROOT
+// ============================================================================
 import React, { useState, useEffect } from 'react';
-import { db } from './lib/storage';
-import { Club, Booking, GuestListEntry, User, UserRole } from './types';
+import { clientStore } from './lib/storage';
+import { Venue, TableBooking, GuestlistEntry } from './types';
 import { Header } from './components/Header';
 import { AmbassadorHeroBanner } from './components/AmbassadorHeroBanner';
 import { ClubCard } from './components/ClubCard';
@@ -13,141 +16,111 @@ import { VenueAdminDashboard } from './components/VenueAdminDashboard';
 import { BouncerScanner } from './components/BouncerScanner';
 import { D1SchemaViewer } from './components/D1SchemaViewer';
 import { MyPassesView } from './components/MyPassesView';
-import { Sparkles, MapPin, ShieldCheck, Flame, Compass, MessageSquare } from 'lucide-react';
+import { Flame, Sparkles, Database, ShieldCheck, MapPin, Search } from 'lucide-react';
 
 export default function App() {
-  const [, setDbTick] = useState<number>(0);
-  const [currentUser, setCurrentUser] = useState<User>(db.getCurrentUser());
-  const [activeTab, setActiveTab] = useState<'explore' | 'passes' | 'admin' | 'scanner' | 'schema'>('explore');
+  const [activeTab, setActiveTab] = useState<'venues' | 'passes' | 'scanner' | 'admin' | 'concierge'>('venues');
+  const [showD1Modal, setShowD1Modal] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  
+  // Modals
+  const [viewingVenue, setViewingVenue] = useState<Venue | null>(null);
+  const [bookingVenue, setBookingVenue] = useState<Venue | null>(null);
+  const [guestlistVenue, setGuestlistVenue] = useState<Venue | null>(null);
+  const [activePass, setActivePass] = useState<{
+    pass: TableBooking | GuestlistEntry;
+    type: 'TABLE_BOOKING' | 'GUESTLIST_PASS';
+    venue?: Venue;
+  } | null>(null);
 
-  // Subscribe to live database updates from Cloudflare D1
+  // Sync with D1 server backend on mount
   useEffect(() => {
-    const unsubscribe = db.subscribe(() => {
-      setDbTick(prev => prev + 1);
-      setCurrentUser(db.getCurrentUser());
-    });
-    return unsubscribe;
+    clientStore.syncWithServer();
   }, []);
 
-  // Filters
-  const [selectedDistrict, setSelectedDistrict] = useState<string>('All Cebu Districts');
-  const [selectedGenre, setSelectedGenre] = useState<string>('All Vibes');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const venues = clientStore.getVenues();
 
-  // Modals
-  const [viewingClub, setViewingClub] = useState<Club | null>(null);
-  const [bookingClub, setBookingClub] = useState<Club | null>(null);
-  const [guestListClub, setGuestListClub] = useState<Club | null>(null);
-  const [activePass, setActivePass] = useState<{
-    item: Booking | GuestListEntry;
-    type: 'booking' | 'guestlist';
-  } | null>(null);
-  const [showConcierge, setShowConcierge] = useState<boolean>(false);
-
-  // All clubs from database
-  const clubs = db.getClubs();
-
-  // User's active passes count
-  const userBookings = currentUser?.id ? db.getUserBookings(currentUser.id) : [];
-  const userGuestList = currentUser?.id ? db.getUserGuestList(currentUser.id) : [];
-  const totalPasses = userBookings.length + userGuestList.length;
-
-  const handleSwitchUser = (role: UserRole) => {
-    const updated = db.switchUser(role);
-    setCurrentUser(updated);
-  };
-
-  // Filtered Clubs
-  const filteredClubs = clubs.filter(club => {
-    if (selectedDistrict !== 'All Cebu Districts' && club.area !== selectedDistrict) {
-      return false;
-    }
-    if (selectedGenre !== 'All Vibes') {
-      const hasGenre = club.music_genres.some(g => g.toLowerCase().includes(selectedGenre.toLowerCase()));
-      if (!hasGenre) return false;
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchName = club.name.toLowerCase().includes(q);
-      const matchArea = club.area.toLowerCase().includes(q);
-      const matchDesc = club.description.toLowerCase().includes(q);
-      const matchGenre = club.music_genres.some(g => g.toLowerCase().includes(q));
-      if (!matchName && !matchArea && !matchDesc && !matchGenre) return false;
-    }
-    return true;
+  const filteredVenues = venues.filter(v => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      v.name.toLowerCase().includes(q) ||
+      v.address.toLowerCase().includes(q) ||
+      (v.tagline && v.tagline.toLowerCase().includes(q)) ||
+      (v.music_genres && v.music_genres.some(g => g.toLowerCase().includes(q)))
+    );
   });
 
   return (
-    <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-[#FF2E88] selection:text-white flex flex-col justify-between">
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 font-sans flex flex-col justify-between selection:bg-orange-500 selection:text-black">
       
-      {/* Top Application Bar */}
+      {/* Top App Header */}
       <Header
-        currentUser={currentUser}
-        onSwitchUser={handleSwitchUser}
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
-        passCount={totalPasses}
+        onTabChange={setActiveTab}
+        onOpenD1Modal={() => setShowD1Modal(true)}
       />
 
-      {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex-1 w-full">
+      {/* Main View Router */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex-1 w-full space-y-8">
         
-        {/* EXPLORE CLUBS TAB */}
-        {activeTab === 'explore' && (
+        {/* EXPLORE VENUES TAB */}
+        {activeTab === 'venues' && (
           <div className="space-y-8">
-            {/* Hero & Ambassador Value Proposition */}
+            {/* Ambassador Promo Banner */}
             <AmbassadorHeroBanner
-              selectedDistrict={selectedDistrict}
-              onSelectDistrict={setSelectedDistrict}
-              selectedGenre={selectedGenre}
-              onSelectGenre={setSelectedGenre}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              onOpenConcierge={() => setShowConcierge(true)}
+              onOpenConcierge={() => setActiveTab('concierge')}
+              onBookDirect={() => {
+                const el = document.getElementById('venues-catalog');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
             />
 
-            {/* Club Catalog Section Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+            {/* Catalog Section Header & Search */}
+            <div id="venues-catalog" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
               <div>
-                <h2 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-                  <Flame className="w-5 h-5 text-[#FF2E88]" />
-                  Cebu City Nightclubs & Lounges ({filteredClubs.length})
+                <h2 className="text-xl font-bold text-white tracking-tight flex items-center space-x-2">
+                  <Flame className="w-5 h-5 text-orange-500" />
+                  <span>Partner Nightclubs & Lounges in Cebu ({filteredVenues.length})</span>
                 </h2>
-                <p className="text-xs text-white/50 mt-0.5">
-                  Verified venues with automated guest lists & zero double-booking table locks
+                <p className="text-xs text-zinc-400 font-mono mt-0.5">
+                  Automated table locks, guestlist passes & door cutoff enforcement
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-white/60">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
-                <span>Live Table Availability Active</span>
+              {/* Search Bar */}
+              <div className="relative min-w-[260px]">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <input
+                  type="text"
+                  placeholder="Search clubs, genres, or locations..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500"
+                />
               </div>
             </div>
 
-            {/* Clubs Grid */}
-            {filteredClubs.length === 0 ? (
-              <div className="bg-gradient-to-br from-[#111] to-[#050505] border border-white/10 rounded-3xl p-12 text-center space-y-3">
-                <p className="text-sm text-zinc-400">No clubs matched your district or genre search filter.</p>
+            {/* Venue Cards Grid */}
+            {filteredVenues.length === 0 ? (
+              <div className="p-12 rounded-3xl bg-zinc-900 border border-zinc-800 text-center space-y-2">
+                <p className="text-sm text-zinc-400">No clubs matched your search criteria.</p>
                 <button
-                  onClick={() => {
-                    setSelectedDistrict('All Cebu Districts');
-                    setSelectedGenre('All Vibes');
-                    setSearchQuery('');
-                  }}
-                  className="px-4 py-2 rounded-xl bg-white/10 text-xs font-bold text-white hover:bg-white/15 border border-white/10"
+                  onClick={() => setSearchQuery('')}
+                  className="text-xs text-orange-400 font-mono hover:underline"
                 >
-                  Clear All Filters
+                  Clear search query
                 </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredClubs.map(club => (
+                {filteredVenues.map(venue => (
                   <ClubCard
-                    key={club.id}
-                    club={club}
-                    onSelectClub={c => setViewingClub(c)}
-                    onJoinGuestList={c => setGuestListClub(c)}
-                    onBookTable={c => setBookingClub(c)}
+                    key={venue.id}
+                    venue={venue}
+                    onBookTable={v => setBookingVenue(v)}
+                    onJoinGuestlist={v => setGuestlistVenue(v)}
+                    onViewDetails={v => setViewingVenue(v)}
                   />
                 ))}
               </div>
@@ -157,126 +130,97 @@ export default function App() {
 
         {/* MY PASSES WALLET TAB */}
         {activeTab === 'passes' && (
-          <MyPassesView
-            onExploreClubs={() => setActiveTab('explore')}
+          <MyPassesView />
+        )}
+
+        {/* VIP CONCIERGE CHAT TAB */}
+        {activeTab === 'concierge' && (
+          <AmbassadorConcierge
+            onSelectVenue={v => setViewingVenue(v)}
+            onBookTable={v => setBookingVenue(v)}
           />
         )}
 
-        {/* BOUNCER / DOOR SCANNER TAB */}
+        {/* BOUNCER GATE SCANNER */}
         {activeTab === 'scanner' && (
           <BouncerScanner />
         )}
 
-        {/* CLUB VENUE ADMIN DASHBOARD TAB */}
+        {/* VENUE ADMIN PORTAL & LEDGER */}
         {activeTab === 'admin' && (
           <VenueAdminDashboard />
         )}
 
-        {/* D1 SCHEMA & SQL VIEWER TAB */}
-        {activeTab === 'schema' && (
-          <D1SchemaViewer />
-        )}
-
       </main>
 
-      {/* Floating Aria Ambassador AI Button (Bottom Right) */}
-      {activeTab === 'explore' && !showConcierge && (
-        <button
-          onClick={() => setShowConcierge(true)}
-          className="fixed bottom-6 right-6 z-30 flex items-center gap-2.5 px-5 py-3 rounded-full bg-gradient-to-r from-[#FF2E88] via-[#A855F7] to-[#8B5CF6] text-white font-bold text-xs sm:text-sm shadow-[0_0_25px_rgba(255,46,136,0.45)] hover:shadow-[0_0_35px_rgba(255,46,136,0.7)] hover:scale-105 active:scale-95 transition-all cursor-pointer border border-white/20"
-        >
-          <div className="w-6 h-6 rounded-full bg-black/60 flex items-center justify-center">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-spin" />
+      {/* Footer */}
+      <footer className="border-t border-zinc-800/80 bg-zinc-950/60 py-6 px-4 text-center text-xs text-zinc-500 font-mono">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span>Cloudflare D1 SQLite Engine • Port 3000 Active</span>
           </div>
-          <span>Ask Aria Ambassador</span>
-        </button>
-      )}
+          <p>© 2026 AfterHours Cebu Nightlife Automation • GCash / Maya Financial Settlement</p>
+          <button
+            onClick={() => setShowD1Modal(true)}
+            className="text-orange-400 hover:text-orange-300 transition underline flex items-center space-x-1"
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>Schema & Ledger DDL</span>
+          </button>
+        </div>
+      </footer>
 
       {/* MODALS */}
-      {/* 1. Club Detail & Floor Plan Preview */}
-      {viewingClub && (
+      {viewingVenue && (
         <ClubDetailModal
-          club={viewingClub}
-          onClose={() => setViewingClub(null)}
-          onJoinGuestList={c => {
-            setViewingClub(null);
-            setGuestListClub(c);
+          venue={viewingVenue}
+          onClose={() => setViewingVenue(null)}
+          onBookTable={v => {
+            setViewingVenue(null);
+            setBookingVenue(v);
           }}
-          onBookTable={c => {
-            setViewingClub(null);
-            setBookingClub(c);
+          onJoinGuestlist={v => {
+            setViewingVenue(null);
+            setGuestlistVenue(v);
           }}
         />
       )}
 
-      {/* 2. Interactive VIP Table Booking Flow */}
-      {bookingClub && (
+      {bookingVenue && (
         <BookingModal
-          club={bookingClub}
-          onClose={() => setBookingClub(null)}
-          onBookingSuccess={booking => {
-            setBookingClub(null);
-            setActivePass({ item: booking, type: 'booking' });
+          venue={bookingVenue}
+          onClose={() => setBookingVenue(null)}
+          onSuccess={booking => {
+            setBookingVenue(null);
+            setActivePass({ pass: booking, type: 'TABLE_BOOKING', venue: bookingVenue });
           }}
         />
       )}
 
-      {/* 3. Free Ambassador Guest List Signup */}
-      {guestListClub && (
+      {guestlistVenue && (
         <GuestListModal
-          club={guestListClub}
-          onClose={() => setGuestListClub(null)}
-          onSuccess={entry => {
-            setGuestListClub(null);
-            setActivePass({ item: entry, type: 'guestlist' });
+          venue={guestlistVenue}
+          onClose={() => setGuestlistVenue(null)}
+          onSuccess={pass => {
+            setGuestlistVenue(null);
+            setActivePass({ pass: pass, type: 'GUESTLIST_PASS', venue: guestlistVenue });
           }}
         />
       )}
 
-      {/* 4. Digital QR Pass Wallet Preview */}
       {activePass && (
         <DigitalPassModal
-          item={activePass.item}
+          pass={activePass.pass}
           type={activePass.type}
+          venue={activePass.venue}
           onClose={() => setActivePass(null)}
         />
       )}
 
-      {/* 5. Aria Nightlife Ambassador Concierge */}
-      {showConcierge && (
-        <AmbassadorConcierge
-          onClose={() => setShowConcierge(false)}
-          onSelectClub={c => {
-            setShowConcierge(false);
-            setViewingClub(c);
-          }}
-          onJoinGuestList={c => {
-            setShowConcierge(false);
-            setGuestListClub(c);
-          }}
-          onBookTable={c => {
-            setShowConcierge(false);
-            setBookingClub(c);
-          }}
-        />
+      {showD1Modal && (
+        <D1SchemaViewer onClose={() => setShowD1Modal(false)} />
       )}
-
-      {/* Footer */}
-      <footer className="mt-16 border-t border-zinc-900 bg-zinc-950/80 py-8 text-center text-xs text-zinc-400">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-violet-600 flex items-center justify-center">
-              <Sparkles className="w-3 h-3 text-white" />
-            </div>
-            <span className="font-bold text-white">AfterHours Cebu</span>
-            <span>&bull; Automated Club Ambassador Platform</span>
-          </div>
-
-          <p className="text-[11px] text-zinc-400">
-            Operating in Mango Square, IT Park, Crossroads Banilad & Reclamation. 100% Commission-Based.
-          </p>
-        </div>
-      </footer>
 
     </div>
   );

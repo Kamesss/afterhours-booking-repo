@@ -1,127 +1,113 @@
+// ============================================================================
+// VENUE & CLUB CARD COMPONENT
+// ============================================================================
 import React from 'react';
-import { Club } from '../types';
-import { MapPin, Star, Clock, Gift, ShieldAlert, Sparkles, Flame } from 'lucide-react';
-import { formatPeso } from '../lib/formatters';
+import { Venue } from '../types';
+import { clientStore } from '../lib/storage';
+import { formatPHP } from '../lib/formatters';
+import { Users, Clock, MapPin, Sparkles, ShieldCheck, ChevronRight, Lock } from 'lucide-react';
 
-interface ClubCardProps {
-  club: Club;
-  onSelectClub: (club: Club) => void;
-  onJoinGuestList: (club: Club) => void;
-  onBookTable: (club: Club) => void;
+interface Props {
+  venue: Venue;
+  onBookTable: (venue: Venue) => void;
+  onJoinGuestlist: (venue: Venue) => void;
+  onViewDetails: (venue: Venue) => void;
 }
 
-export const ClubCard: React.FC<ClubCardProps> = ({
-  club,
-  onSelectClub,
-  onJoinGuestList,
+export const ClubCard: React.FC<Props> = ({
+  venue,
   onBookTable,
+  onJoinGuestlist,
+  onViewDetails
 }) => {
+  const tables = clientStore.getTablesByVenue(venue.id);
+  const minTableSpend = tables.length > 0 
+    ? Math.min(...tables.map(t => t.min_spend_php)) 
+    : 10000;
+
   return (
-    <div className="group relative bg-gradient-to-br from-[#111] to-[#050505] border border-white/10 rounded-2xl overflow-hidden hover:border-[#FF2E88]/50 transition-all duration-300 shadow-[0_4px_25px_rgba(0,0,0,0.5)] flex flex-col justify-between">
+    <div className="group rounded-3xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 transition-all duration-300 overflow-hidden flex flex-col justify-between shadow-xl">
       
-      {/* Image Banner */}
-      <div className="relative h-48 sm:h-56 w-full overflow-hidden cursor-pointer" onClick={() => onSelectClub(club)}>
+      {/* Image Banner & Live Capacity Tag */}
+      <div className="relative aspect-[16/9] w-full overflow-hidden bg-zinc-950">
         <img
-          src={club.hero_image || 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=1200&q=80'}
-          alt={club.name}
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+          src={venue.image_url || 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=1200&q=80'}
+          alt={venue.name}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           referrerPolicy="no-referrer"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-black/40" />
 
         {/* Top Badges */}
-        <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
-          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[#050505]/80 backdrop-blur-md text-[#FF2E88] border border-[#FF2E88]/30 flex items-center gap-1">
-            <MapPin className="w-3 h-3 text-[#FF2E88]" />
-            {club.area || 'Cebu City'}
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+          <span className="px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-zinc-700/60 text-xs font-mono text-zinc-200 flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Open {venue.open_time} - {venue.close_time}</span>
           </span>
-          {club.featured && (
-            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-zinc-950 shadow-[0_0_10px_rgba(245,158,11,0.4)] flex items-center gap-1">
-              <Flame className="w-3 h-3 fill-zinc-950" />
-              TRENDING
-            </span>
-          )}
+
+          <span className="px-3 py-1 rounded-full bg-orange-500/20 backdrop-blur-md border border-orange-500/40 text-xs font-mono font-semibold text-orange-300">
+            Cutoff: {venue.guestlist_cutoff_time}
+          </span>
         </div>
 
-        {/* Bottom Info on Image */}
-        <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
-          <div>
-            <h3 className="text-xl font-bold text-white tracking-tight group-hover:text-[#FF2E88] transition-colors">
-              {club.name}
-            </h3>
-            <p className="text-xs text-white/60 flex items-center gap-1.5 mt-0.5">
-              <Clock className="w-3 h-3 text-amber-400" />
-              <span>Peak: {club.peak_hours || '12:00 AM – 3:30 AM'}</span>
-            </p>
-          </div>
-          <div className="flex items-center space-x-1 bg-black/80 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 text-amber-400 font-bold text-xs">
-            <Star className="w-3.5 h-3.5 fill-amber-400" />
-            <span>{(club.curator_rating || 4.8).toFixed(1)}</span>
-          </div>
+        {/* Bottom Title on Image */}
+        <div className="absolute bottom-3 left-4 right-4">
+          <h3 className="text-xl font-black text-white tracking-tight">{venue.name}</h3>
+          <p className="text-xs text-zinc-300 line-clamp-1 mt-0.5">{venue.tagline}</p>
         </div>
       </div>
 
-      {/* Card Body */}
-      <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-4">
-        
-        {/* Description & Music tags */}
+      {/* Body Details */}
+      <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
         <div className="space-y-2.5">
-          <p className="text-xs text-white/50 line-clamp-2 leading-relaxed">
-            {club.description || 'Premium Cebu nightlife destination.'}
-          </p>
+          {/* Address */}
+          <div className="flex items-start space-x-2 text-xs text-zinc-400">
+            <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-orange-400" />
+            <span className="line-clamp-1">{venue.address}</span>
+          </div>
 
-          <div className="flex flex-wrap gap-1.5 pt-0.5">
-            {(club.music_genres || ['EDM', 'Commercial', 'Hip-Hop']).map((genre) => (
-              <span
-                key={genre}
-                className="px-2 py-0.5 rounded-lg text-[10px] font-medium bg-white/5 text-white/70 border border-white/10"
-              >
+          {/* Music Genre Tags */}
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {(venue.music_genres || ['Club Hits', 'Electronic', 'VIP Lounge']).map(genre => (
+              <span key={genre} className="px-2.5 py-0.5 rounded-full bg-zinc-800/80 border border-zinc-700/60 text-[11px] text-zinc-300 font-mono">
                 {genre}
               </span>
             ))}
           </div>
+
+          {/* Table Pricing Teaser */}
+          <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs">
+            <span className="text-zinc-400 font-mono">VIP Tables from:</span>
+            <span className="text-emerald-400 font-bold font-mono">{formatPHP(minTableSpend)}</span>
+          </div>
         </div>
 
-        {/* Ambassador Perk Highlight Box */}
-        <div className="bg-gradient-to-r from-[#FF2E88]/15 via-[#8B5CF6]/10 to-transparent border border-[#FF2E88]/30 rounded-xl p-2.5 space-y-1">
-          <div className="flex items-center gap-1.5 text-[#FF2E88] text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-            <span>Automated Ambassador Perk</span>
-          </div>
-          <p className="text-[11px] text-white/80 font-medium">
-            {club.ambassador_perks?.[0] || '⚡ Express VIP Door Entry with Ambassador Pass'}
-          </p>
-        </div>
-
-        {/* Pricing / Cover info & Action CTAs */}
-        <div className="space-y-3 pt-1 border-t border-white/10">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-white/40">Standard Door Cover:</span>
-            <span className="font-semibold text-white">
-              {!club.cover_fee_cents || club.cover_fee_cents === 0 ? 'Free' : formatPeso(club.cover_fee_cents)}
-              <span className="text-[10px] text-emerald-400 ml-1">(Free on Guestlist)</span>
-            </span>
-          </div>
-
+        {/* Action Buttons */}
+        <div className="pt-4 border-t border-zinc-800 space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <button
-              id={`guestlist-btn-${club.slug}`}
-              onClick={() => onJoinGuestList(club)}
-              className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold border border-white/10 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              onClick={() => onBookTable(venue)}
+              className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-400 hover:to-rose-400 text-black font-bold text-xs transition flex items-center justify-center space-x-1 shadow-md shadow-orange-500/10"
             >
-              <Gift className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Guest List</span>
+              <Lock className="w-3.5 h-3.5" />
+              <span>Book Table</span>
             </button>
 
             <button
-              id={`book-table-btn-${club.slug}`}
-              onClick={() => onBookTable(club)}
-              className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#FF2E88] to-[#8B5CF6] hover:opacity-90 text-white text-xs font-semibold shadow-[0_0_15px_rgba(255,46,136,0.3)] flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              onClick={() => onJoinGuestlist(venue)}
+              className="py-2.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-semibold text-xs transition flex items-center justify-center space-x-1 border border-zinc-700"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Book Table</span>
+              <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+              <span>Free Pass</span>
             </button>
           </div>
+
+          <button
+            onClick={() => onViewDetails(venue)}
+            className="w-full py-1.5 text-center text-xs text-zinc-400 hover:text-zinc-200 transition font-mono"
+          >
+            View Layout & Bottle Menus →
+          </button>
         </div>
 
       </div>

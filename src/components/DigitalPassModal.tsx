@@ -1,190 +1,116 @@
-import React, { useState } from 'react';
-import { Booking, GuestListEntry } from '../types';
-import { db } from '../lib/storage';
-import { formatPeso, formatDatePretty } from '../lib/formatters';
-import { X, Sparkles, CheckCircle2, ShieldCheck, Download, Share2, Copy, Check, Clock, Users } from 'lucide-react';
+// ============================================================================
+// DIGITAL PASS QR MODAL (TABLE RESERVATION OR GUESTLIST PASS)
+// ============================================================================
+import React from 'react';
+import { TableBooking, GuestlistEntry, Venue } from '../types';
+import { formatPHP } from '../lib/formatters';
+import { CheckCircle2, QrCode, Sparkles, MapPin, Clock, Calendar, Users, X, Share2, Download } from 'lucide-react';
 
-interface DigitalPassModalProps {
-  item: Booking | GuestListEntry;
-  type: 'booking' | 'guestlist';
+interface Props {
+  pass: TableBooking | GuestlistEntry;
+  type: 'TABLE_BOOKING' | 'GUESTLIST_PASS';
+  venue?: Venue;
   onClose: () => void;
 }
 
-export const DigitalPassModal: React.FC<DigitalPassModalProps> = ({
-  item,
+export const DigitalPassModal: React.FC<Props> = ({
+  pass,
   type,
-  onClose,
+  venue,
+  onClose
 }) => {
-  const isBooking = type === 'booking';
-  const booking = isBooking ? (item as Booking) : null;
-  const guestlist = !isBooking ? (item as GuestListEntry) : null;
+  const isBooking = type === 'TABLE_BOOKING';
+  const booking = isBooking ? (pass as TableBooking) : null;
+  const guestlist = !isBooking ? (pass as GuestlistEntry) : null;
 
-  const clubId = isBooking ? booking!.club_id : guestlist!.club_id;
-  const club = db.getClubById(clubId);
-  const tables = db.getClubTables(clubId);
-  const table = booking ? tables.find(t => t.id === booking.table_id) : null;
-  const tableType = table ? db.getTableTypes(clubId).find(tt => tt.id === table.table_type_id) : null;
-
-  const [copied, setCopied] = useState(false);
-
-  const qrCode = isBooking ? booking!.qr_code : guestlist!.qr_code;
-  const guestName = isBooking ? booking!.customer_name : guestlist!.guest_name;
-  const eventDate = isBooking ? booking!.booking_date : guestlist!.event_date;
-  const arrivalTime = isBooking ? booking!.arrival_time : guestlist!.arrival_time_estimate;
-  const pax = isBooking ? booking!.guest_count : guestlist!.pax;
-
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(qrCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const refCode = isBooking ? booking!.booking_ref : guestlist!.pass_ref;
+  const targetDate = pass.target_date;
+  const guestCount = pass.guest_count;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6">
-      <div className="relative w-full max-w-md bg-[#0A0A0B] border border-white/10 rounded-3xl shadow-2xl overflow-hidden my-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+      <div className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl relative flex flex-col">
         
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 z-20 p-2 rounded-full bg-black/60 text-white/70 hover:text-white border border-white/10 transition-colors cursor-pointer"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {/* Top Header */}
+        <div className="p-6 bg-gradient-to-b from-orange-500/20 via-zinc-900/60 to-zinc-900 text-center relative">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1.5 rounded-xl bg-zinc-800/80 text-zinc-400 hover:text-white"
+          >
+            <X className="w-4 h-4" />
+          </button>
 
-        {/* Holographic Nightclub VIP Ticket Body */}
-        <div className="relative p-6 sm:p-7 space-y-6">
-          
-          {/* Header Pass Banner */}
-          <div className="relative rounded-2xl bg-gradient-to-r from-[#FF2E88] via-[#8B5CF6] to-[#FF2E88] p-5 text-white shadow-[0_0_25px_rgba(255,46,136,0.35)] overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/15 rounded-full blur-2xl pointer-events-none" />
-            
-            <div className="flex items-center justify-between">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-black/30 border border-white/30 backdrop-blur-sm">
-                {isBooking ? '★ VIP TABLE PASS' : '⚡ GUEST LIST PASS'}
-              </span>
-              <span className="text-[11px] font-mono text-white/90">
-                AfterHours Cebu
-              </span>
-            </div>
+          <span className="text-[10px] uppercase font-mono tracking-widest px-3 py-1 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40">
+            {isBooking ? 'VIP Table Confirmation' : 'Complimentary Door Pass'}
+          </span>
 
-            <div className="mt-4">
-              <h3 className="text-2xl font-black tracking-tight">{club?.name || 'Cebu Nightclub'}</h3>
-              <p className="text-xs text-white/90 mt-0.5">{club?.address}</p>
-            </div>
+          <h3 className="text-xl font-black text-white mt-2">{venue?.name || 'Cebu Nightlife Pass'}</h3>
+          <p className="text-xs text-zinc-400 font-mono mt-0.5">{targetDate}</p>
+        </div>
 
-            <div className="mt-4 pt-3 border-t border-white/25 grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <span className="text-[10px] text-white/80 block uppercase">Night</span>
-                <span className="font-bold">{formatDatePretty(eventDate)}</span>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] text-white/80 block uppercase">Target Arrival</span>
-                <span className="font-bold">{arrivalTime}</span>
+        {/* QR Code Center Box */}
+        <div className="px-6 py-4 flex flex-col items-center">
+          <div className="p-4 rounded-3xl bg-white text-black shadow-2xl flex flex-col items-center justify-center border-4 border-orange-500/30">
+            {/* SVG QR Code Graphic */}
+            <div className="w-44 h-44 flex items-center justify-center bg-zinc-100 rounded-2xl relative overflow-hidden">
+              <svg viewBox="0 0 100 100" className="w-full h-full p-2 text-black fill-current">
+                <path d="M0 0h30v30H0zm4 4v22h22V4zm4 4h14v14H8zM70 0h30v30H70zm4 4v22h22V4zm4 4h14v14H78zM0 70h30v30H0zm4 4v22h22V74zm4 4h14v14H8zm32-68h8v8h-8zm12 0h8v8h-8zm-12 12h8v8h-8zm20 0h8v8h-8zm-8 8h8v8h-8zm-12 12h8v8h-8zm16 0h8v8h-8zm12 0h8v8h-8zm-24 12h8v8h-8zm24 0h8v8h-8zm-16 12h8v8h-8zm12 0h8v8h-8zm8 0h8v8h-8zm-28 12h8v8h-8zm12 0h8v8h-8zm16 0h8v8h-8zm8 0h8v8h-8z" />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-8 h-8 rounded-lg bg-orange-500 border-2 border-white flex items-center justify-center text-black font-black text-[10px] shadow">
+                  AH
+                </div>
               </div>
             </div>
+            <span className="font-mono text-base font-black tracking-widest text-black mt-2">
+              {refCode}
+            </span>
           </div>
 
-          {/* Ticket Perforation Notch (SVG punch) */}
-          <div className="relative flex items-center justify-between -mx-6">
-            <div className="w-5 h-8 bg-[#050505] rounded-r-full border-r border-t border-b border-white/10" />
-            <div className="flex-1 border-t-2 border-dashed border-white/15 mx-2" />
-            <div className="w-5 h-8 bg-[#050505] rounded-l-full border-l border-t border-b border-white/10" />
+          <p className="text-[11px] text-zinc-400 text-center mt-3">
+            Present this QR code to the door host or bouncer at entrance
+          </p>
+        </div>
+
+        {/* Pass Breakdown */}
+        <div className="p-6 bg-zinc-950/80 border-t border-zinc-800 space-y-2 text-xs font-mono">
+          <div className="flex justify-between text-zinc-400">
+            <span>Pass Type:</span>
+            <span className="text-white font-semibold">{isBooking ? 'VIP Table Hold' : 'Free Guestlist Pass'}</span>
+          </div>
+          <div className="flex justify-between text-zinc-400">
+            <span>Party Size:</span>
+            <span className="text-white">{guestCount} Guests</span>
           </div>
 
-          {/* QR Code Pass Box */}
-          <div className="bg-white rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center space-y-3 shadow-xl">
-            <div className="relative p-2 border-2 border-zinc-900 rounded-xl bg-white flex flex-col items-center">
-              {/* Stylized QR representation with animated scanning laser line */}
-              <div className="relative w-44 h-44 bg-[#050505] rounded-lg p-2 flex flex-col items-center justify-between overflow-hidden">
-                {/* Simulated High-Res QR Blocks */}
-                <div className="w-full h-full grid grid-cols-6 grid-rows-6 gap-1 p-1">
-                  {Array.from({ length: 36 }).map((_, i) => {
-                    const filled = (i * 7 + 3) % 4 !== 0 || i === 0 || i === 5 || i === 30 || i === 14;
-                    return (
-                      <div
-                        key={i}
-                        className={`rounded-xs ${filled ? 'bg-white' : 'bg-transparent'}`}
-                      />
-                    );
-                  })}
-                </div>
-                {/* Center Badge */}
-                <div className="absolute inset-0 m-auto w-10 h-10 bg-gradient-to-br from-[#FF2E88] to-[#8B5CF6] rounded-lg flex items-center justify-center border-2 border-white shadow-md">
-                  <Sparkles className="w-5 h-5 text-amber-300" />
-                </div>
-                {/* Animated Scanning Line */}
-                <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-[#FF2E88] to-transparent shadow-[0_0_8px_#FF2E88] animate-bounce top-1/2" />
+          {isBooking && (
+            <>
+              <div className="flex justify-between text-zinc-400">
+                <span>Table ID:</span>
+                <span className="text-orange-400 font-bold">{booking!.table_id}</span>
               </div>
-            </div>
+              <div className="flex justify-between text-zinc-400">
+                <span>Deposit Paid:</span>
+                <span className="text-emerald-400 font-bold">{formatPHP(booking!.deposit_amount_php)}</span>
+              </div>
+            </>
+          )}
 
-            <div className="text-center">
-              <span className="text-[11px] font-mono font-bold text-zinc-900 tracking-wider">
-                {qrCode}
-              </span>
-              <p className="text-[10px] text-zinc-500 mt-0.5">
-                Present this screen to the host or bouncer at the door
-              </p>
+          {!isBooking && (
+            <div className="flex justify-between text-zinc-400">
+              <span>Door Cutoff Time:</span>
+              <span className="text-amber-400 font-bold">{guestlist!.cutoff_time}</span>
             </div>
-          </div>
+          )}
 
-          {/* Details Breakdown */}
-          <div className="bg-[#050505] border border-white/10 rounded-2xl p-4 space-y-2.5 text-xs text-white/80">
-            <div className="flex justify-between">
-              <span className="text-white/50">Primary Passholder:</span>
-              <span className="font-bold text-white">{guestName}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/50">Guests Admitted:</span>
-              <span className="font-bold text-white">{pax} Guests</span>
-            </div>
-
-            {isBooking && table && (
-              <>
-                <div className="flex justify-between">
-                  <span className="text-white/50">Assigned VIP Table:</span>
-                  <span className="font-extrabold text-[#FF2E88]">{table.table_number}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-white/50">Min Consumable:</span>
-                  <span className="font-bold text-white font-mono">{formatPeso(booking!.min_spend_cents)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-white/50">Deposit Paid In-App:</span>
-                  <span className="font-extrabold text-emerald-400 font-mono">{formatPeso(booking!.deposit_paid_cents)}</span>
-                </div>
-              </>
-            )}
-
-            {/* Perks included */}
-            <div className="pt-2 border-t border-white/10 space-y-1">
-              <span className="text-[10px] font-bold text-[#FF2E88] uppercase block">Ambassador Perks Active:</span>
-              <p className="text-[11px] text-white/80">
-                {isBooking
-                  ? `⚡ Express VIP Entry + ${booking?.ambassador_promo_code ? 'Promo Perks Applied' : 'Priority Table Allocation'}`
-                  : guestlist?.ambassador_perk}
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="pt-3 border-t border-zinc-800">
             <button
-              onClick={handleCopyCode}
-              className="py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold border border-white/10 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              onClick={onClose}
+              className="w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-semibold text-xs transition"
             >
-              {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              <span>{copied ? 'Code Copied' : 'Copy Pass Code'}</span>
-            </button>
-
-            <button
-              onClick={() => alert(`Saved ${club?.name} VIP pass to device storage!`)}
-              className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#FF2E88] to-[#8B5CF6] hover:opacity-90 text-white text-xs font-semibold shadow-[0_0_15px_rgba(255,46,136,0.3)] flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-            >
-              <Download className="w-4 h-4" />
-              <span>Save Pass</span>
+              Done / Close Pass
             </button>
           </div>
-
         </div>
 
       </div>

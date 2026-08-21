@@ -1,38 +1,29 @@
 import { UserModel } from '../models/UserModel';
 import { ApiResponseView } from '../views/ApiResponseView';
-import { D1Database, User } from '../../types';
 
 export class UserController {
   private userModel: UserModel;
 
-  constructor(db: D1Database) {
-    this.userModel = new UserModel(db);
+  constructor(userModel: UserModel) {
+    this.userModel = userModel;
   }
 
-  async index(): Promise<Response> {
+  async getAllUsers(): Promise<Response> {
     try {
-      const rawUsers = await this.userModel.findAll();
-      return ApiResponseView.success(rawUsers);
+      const users = await this.userModel.getAll();
+      return ApiResponseView.json({ success: true, data: users });
     } catch (err: any) {
-      return ApiResponseView.serverError('Failed to fetch users from D1', err.message);
+      return ApiResponseView.error(`Failed to fetch users: ${err.message}`, 500);
     }
   }
 
-  async create(request: Request): Promise<Response> {
+  async getUserByPromoterCode(code: string): Promise<Response> {
     try {
-      const body = (await request.json()) as Partial<User>;
-      if (!body.email || !body.name) {
-        return ApiResponseView.badRequest('Name and Email are required');
-      }
-
-      const created = await this.userModel.create(body);
-      if (!created) {
-        return ApiResponseView.serverError('Failed to create user in D1');
-      }
-
-      return ApiResponseView.created(created);
+      const user = await this.userModel.getByPromoterCode(code);
+      if (!user) return ApiResponseView.error('Promoter code not found', 404);
+      return ApiResponseView.json({ success: true, data: user });
     } catch (err: any) {
-      return ApiResponseView.serverError('Failed to save user', err.message);
+      return ApiResponseView.error(`Failed to verify promoter code: ${err.message}`, 500);
     }
   }
 }

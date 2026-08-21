@@ -1,133 +1,175 @@
-import { ClubController } from '../controllers/ClubController';
+import { D1Database } from '../../types';
+import { SchemaModel } from '../models/SchemaModel';
+import { VenueModel } from '../models/VenueModel';
+import { TableModel } from '../models/TableModel';
+import { BookingModel } from '../models/BookingModel';
+import { GuestListModel } from '../models/GuestListModel';
+import { UserModel } from '../models/UserModel';
+import { LedgerModel } from '../models/LedgerModel';
+
+import { VenueController } from '../controllers/VenueController';
 import { TableController } from '../controllers/TableController';
 import { BookingController } from '../controllers/BookingController';
 import { GuestListController } from '../controllers/GuestListController';
-import { UserController } from '../controllers/UserController';
 import { PassVerificationController } from '../controllers/PassVerificationController';
 import { SyncController } from '../controllers/SyncController';
-import { SchemaModel } from '../models/SchemaModel';
+import { UserController } from '../controllers/UserController';
 import { ApiResponseView } from '../views/ApiResponseView';
-import { D1Database } from '../../types';
 
 export class AppRouter {
-  private clubController: ClubController;
+  private db: D1Database;
+  private schemaModel: SchemaModel;
+  private venueModel: VenueModel;
+  private tableModel: TableModel;
+  private bookingModel: BookingModel;
+  private guestListModel: GuestListModel;
+  private userModel: UserModel;
+  private ledgerModel: LedgerModel;
+
+  private venueController: VenueController;
   private tableController: TableController;
   private bookingController: BookingController;
   private guestListController: GuestListController;
-  private userController: UserController;
   private passVerificationController: PassVerificationController;
   private syncController: SyncController;
-  private schemaModel: SchemaModel;
+  private userController: UserController;
 
   constructor(db: D1Database) {
-    this.clubController = new ClubController(db);
-    this.tableController = new TableController(db);
-    this.bookingController = new BookingController(db);
-    this.guestListController = new GuestListController(db);
-    this.userController = new UserController(db);
-    this.passVerificationController = new PassVerificationController(db);
-    this.syncController = new SyncController(db);
+    this.db = db;
     this.schemaModel = new SchemaModel(db);
+    this.venueModel = new VenueModel(db);
+    this.tableModel = new TableModel(db);
+    this.bookingModel = new BookingModel(db);
+    this.guestListModel = new GuestListModel(db);
+    this.userModel = new UserModel(db);
+    this.ledgerModel = new LedgerModel(db);
+
+    this.venueController = new VenueController(this.venueModel, this.tableModel);
+    this.tableController = new TableController(this.tableModel);
+    this.bookingController = new BookingController(this.bookingModel, this.tableModel, this.ledgerModel);
+    this.guestListController = new GuestListController(this.guestListModel);
+    this.passVerificationController = new PassVerificationController(
+      this.bookingModel,
+      this.guestListModel,
+      this.venueModel,
+      this.userModel,
+      this.tableModel
+    );
+    this.syncController = new SyncController(
+      this.venueModel,
+      this.tableModel,
+      this.bookingModel,
+      this.guestListModel,
+      this.userModel,
+      this.ledgerModel
+    );
+    this.userController = new UserController(this.userModel);
   }
 
-  async initSchema(): Promise<void> {
-    await this.schemaModel.ensureSchema();
+  async initSchema(): Promise<boolean> {
+    return this.schemaModel.initializeDatabase();
   }
 
   async dispatch(request: Request): Promise<Response> {
+    return this.handle(request);
+  }
+
+  async handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    const path = url.pathname;
     const method = request.method.toUpperCase();
 
-    // 1. Handle CORS Preflight
-    if (method === 'OPTIONS') {
-      return ApiResponseView.preflight();
-    }
-
-    // Strip leading /api prefix if present
-    const path = url.pathname.startsWith('/api') ? url.pathname.replace(/^\/api/, '') : url.pathname;
-
-    // 2. Route Definitions
-
-    // --- CLUBS ROUTES ---
-    if (path === '/clubs' || path === '/clubs/') {
-      if (method === 'GET') return this.clubController.index();
-      if (method === 'POST') return this.clubController.create(request);
-    }
-
-    const clubDetailMatch = path.match(/^\/clubs\/([a-zA-Z0-9_-]+)$/);
-    if (clubDetailMatch && method === 'GET') {
-      return this.clubController.show(clubDetailMatch[1]);
-    }
-
-    // --- TABLE TYPES ROUTES ---
-    if (path === '/table_types' || path === '/table_types/') {
-      if (method === 'GET') return this.tableController.indexTableTypes(url);
-      if (method === 'POST') return this.tableController.createTableType(request);
-    }
-
-    const tableTypeUpdateMatch = path.match(/^\/table_types\/([a-zA-Z0-9_-]+)$/);
-    if (tableTypeUpdateMatch && method === 'PATCH') {
-      return this.tableController.updateTableType(tableTypeUpdateMatch[1], request);
-    }
-
-    // --- CLUB TABLES ROUTES ---
-    if (path === '/club_tables' || path === '/club_tables/') {
-      if (method === 'GET') return this.tableController.indexClubTables(url);
-      if (method === 'POST') return this.tableController.createClubTable(request);
-    }
-
-    // --- USERS ROUTES ---
-    if (path === '/users' || path === '/users/') {
-      if (method === 'GET') return this.userController.index();
-      if (method === 'POST') return this.userController.create(request);
-    }
-
-    // --- BOOKINGS ROUTES ---
-    if (path === '/bookings' || path === '/bookings/') {
-      if (method === 'GET') return this.bookingController.index(url);
-      if (method === 'POST') return this.bookingController.create(request);
-    }
-
-    const bookingStatusMatch = path.match(/^\/bookings\/([a-zA-Z0-9_-]+)\/status$/);
-    if (bookingStatusMatch && method === 'PATCH') {
-      return this.bookingController.updateStatus(bookingStatusMatch[1], request);
-    }
-
-    // --- GUEST LIST ROUTES ---
-    if (path === '/guest_list' || path === '/guest_list/') {
-      if (method === 'GET') return this.guestListController.index(url);
-      if (method === 'POST') return this.guestListController.create(request);
-    }
-
-    // --- QR PASS VERIFICATION ---
-    if (path === '/verify-pass' && method === 'POST') {
-      return this.passVerificationController.verify(request);
-    }
-
-    // --- FULL D1 DATA DUMP (Live frontend auto-sync) ---
-    if (path === '/d1-dump' && method === 'GET') {
-      return this.syncController.dumpAll();
-    }
-
-    // --- API ROOT INFO / HEALTH ---
-    if (path === '' || path === '/') {
-      return ApiResponseView.success({
+    // Root info
+    if (path === '/' || path === '/api') {
+      return ApiResponseView.json({
         status: 'online',
-        architecture: 'MVC (Model-View-Controller)',
-        service: 'AfterHours Cebu Club D1 API',
-        endpoints: [
-          '/api/d1-dump',
-          '/api/clubs',
-          '/api/table_types',
-          '/api/club_tables',
-          '/api/users',
-          '/api/bookings',
-          '/api/guest_list',
-          '/api/verify-pass',
-        ],
+        database: 'club_booking_db',
+        dialect: 'sqlite3',
+        schema: ['users', 'venues', 'tables', 'table_bookings', 'guestlists', 'ledger_transactions', 'ledger_postings']
       });
     }
 
-    return ApiResponseView.notFound(`Route '${method} ${url.pathname}' not found`);
+    // 1. Venues & Clubs
+    if ((path === '/api/venues' || path === '/api/clubs') && method === 'GET') {
+      return this.venueController.getAllVenues();
+    }
+    if (path.startsWith('/api/venues/') && path.endsWith('/tables') && method === 'GET') {
+      const parts = path.split('/');
+      const venueId = parts[3];
+      return this.venueController.getTablesByVenue(venueId);
+    }
+    if (path.startsWith('/api/venues/') && method === 'GET') {
+      const venueId = path.split('/')[3];
+      return this.venueController.getVenueById(venueId);
+    }
+
+    // 2. Tables
+    if (path === '/api/tables' && method === 'GET') {
+      return this.tableController.getAllTables();
+    }
+
+    // 3. Bookings
+    if (path === '/api/bookings' && method === 'GET') {
+      const venueId = url.searchParams.get('venue_id') || undefined;
+      const targetDate = url.searchParams.get('target_date') || undefined;
+      const userId = url.searchParams.get('user_id') || undefined;
+      return this.bookingController.getBookings(venueId, targetDate, userId);
+    }
+    if (path === '/api/bookings' && method === 'POST') {
+      const body = await request.json();
+      return this.bookingController.createBooking(body);
+    }
+
+    // 4. Guestlist
+    if (path === '/api/guestlist' && method === 'GET') {
+      const venueId = url.searchParams.get('venue_id') || undefined;
+      const targetDate = url.searchParams.get('target_date') || undefined;
+      const userId = url.searchParams.get('user_id') || undefined;
+      return this.guestListController.getGuestlist(venueId, targetDate, userId);
+    }
+    if (path === '/api/guestlist' && method === 'POST') {
+      const body = await request.json();
+      return this.guestListController.addGuestlistEntry(body);
+    }
+
+    // 5. Verification & Door Scanner
+    if (path === '/api/verify-pass' && (method === 'GET' || method === 'POST')) {
+      const ref = url.searchParams.get('ref') || (method === 'POST' ? (await request.json()).ref : '');
+      const action = (url.searchParams.get('action') as any) || 'verify';
+      return this.passVerificationController.verifyPass(ref, action);
+    }
+
+    // 6. Users & Promoters
+    if (path === '/api/users' && method === 'GET') {
+      return this.userController.getAllUsers();
+    }
+    if (path.startsWith('/api/promoters/') && method === 'GET') {
+      const code = path.split('/')[3];
+      return this.userController.getUserByPromoterCode(code);
+    }
+
+    // 7. Ledger Transactions & Postings
+    if (path === '/api/ledger' && method === 'GET') {
+      try {
+        const transactions = await this.ledgerModel.getAllTransactions();
+        const balances = await this.ledgerModel.getAccountBalances();
+        return ApiResponseView.json({ success: true, data: { transactions, balances } });
+      } catch (err: any) {
+        return ApiResponseView.error(`Failed to fetch ledger: ${err.message}`, 500);
+      }
+    }
+
+    // 8. Full D1 Dump Sync
+    if (path === '/api/d1-dump' && method === 'GET') {
+      return this.syncController.getFullDump();
+    }
+
+    // 9. Raw D1 DDL & SQL Exec (for testing/schema inspection)
+    if (path === '/api/d1-init' && method === 'POST') {
+      await this.initSchema();
+      return ApiResponseView.json({ success: true, message: 'D1 Schema initialized successfully' });
+    }
+
+    return ApiResponseView.error('Endpoint not found', 404);
   }
 }

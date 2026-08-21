@@ -1,321 +1,426 @@
+// ============================================================================
+// CLOUDFLARE D1 (SQLITE) SCHEMA & LEDGER INSPECTOR
+// ============================================================================
 import React, { useState } from 'react';
-import { db } from '../lib/storage';
-import { Database, Table, Key, Check, Copy, Download, RefreshCw, Layers, ShieldCheck, Code } from 'lucide-react';
+import { Database, Terminal, ShieldCheck, RefreshCw, Layers, DollarSign, CheckCircle2, Copy } from 'lucide-react';
+import { clientStore } from '../lib/storage';
+import { SchemaModel } from '../server/models/SchemaModel';
+import { formatPHP } from '../lib/formatters';
 
-export const D1SchemaViewer: React.FC = () => {
+export const D1SchemaViewer: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const [activeTab, setActiveTab] = useState<'tables' | 'ddl' | 'ledger' | 'seed'>('tables');
+  const [selectedTable, setSelectedTable] = useState<string>('venues');
   const [copied, setCopied] = useState(false);
-  const [activeTable, setActiveTable] = useState<'users' | 'clubs' | 'table_types' | 'club_tables' | 'bookings'>('bookings');
 
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState('');
+  const venues = clientStore.getVenues();
+  const tables = clientStore.getTablesByVenue(venues[0]?.id || 'ven_kazmik');
+  const allTables = clientStore.getTablesByVenue('ven_kazmik');
+  const bookings = clientStore.getBookings();
+  const guestlists = clientStore.getGuestlists();
+  const users = clientStore.getUsers();
+  const ledgerTx = clientStore.getLedgerTransactions();
+  const ledgerPostings = clientStore.getLedgerPostings();
 
-  const users = db.getUsers();
-  const clubs = db.getClubs();
-  const tableTypes = db.getTableTypes();
-  const clubTables = db.getClubTables();
-  const bookings = db.getBookings();
+  const ddlStatements = SchemaModel.getDDLStatements();
 
-  const sqlDump = db.generateD1SqlDump();
-
-  const handleSyncD1 = async () => {
-    setIsSyncing(true);
-    setSyncMessage('');
-    const success = await db.syncFromD1();
-    setIsSyncing(false);
-    if (success) {
-      setSyncMessage('D1 Cloud Synced Successfully!');
-    } else {
-      setSyncMessage('Synced with local cache.');
-    }
-    setTimeout(() => setSyncMessage(''), 3000);
-  };
-
-  const handleCopySql = () => {
-    navigator.clipboard.writeText(sqlDump);
+  const handleCopyDDL = () => {
+    navigator.clipboard.writeText(ddlStatements.join('\n\n'));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownloadSql = () => {
-    const element = document.createElement('a');
-    const file = new Blob([sqlDump], { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
-    element.download = `afterhours_cebu_d1_dump_${new Date().toISOString().split('T')[0]}.sql`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  };
-
   const handleReset = () => {
-    if (confirm('Clear local database cache and re-sync fresh records directly from Cloudflare D1?')) {
-      db.clearLocalCache();
-      handleSyncD1();
+    if (confirm('Reset database state to original seed.sql data?')) {
+      clientStore.resetToSeed();
+      window.location.reload();
     }
   };
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto">
-      
-      {/* Header */}
-      <div className="bg-[#0A0A0B] border border-white/10 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-[#8B5CF6]/15 via-[#FF2E88]/10 to-transparent blur-3xl pointer-events-none" />
-
-        <div className="space-y-2 relative z-10">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#FF2E88]/10 text-[#FF2E88] border border-[#FF2E88]/20">
-            <Database className="w-3.5 h-3.5 text-[#FF2E88]" />
-            <span>Cloudflare D1: club_booking_db</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-950/60">
+          <div className="flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-orange-400">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="font-semibold text-white">Cloudflare D1 SQLite Engine</h3>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
+                  Active Connection
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 font-mono">database: club_booking_db | dialect: sqlite3</p>
+            </div>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white">
-            Schema & Live D1 Data Explorer
-          </h1>
-          <p className="text-xs text-white/50 max-w-xl">
-            Directly connected to Cloudflare D1 binding <code className="text-[#FF2E88] font-mono">DB</code> (<code className="text-white/70 font-mono text-[11px]">ceb841b0-6066-4196-9bc2-b79e2ca2aaf3</code>). Enforces foreign keys and <code className="text-[#FF2E88] font-mono">uq_prevent_table_double_booking</code>.
-          </p>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2 relative z-10">
-          <button
-            onClick={handleSyncD1}
-            disabled={isSyncing}
-            className="py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold border border-white/20 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>{isSyncing ? 'Syncing D1...' : 'Sync Live D1'}</span>
-          </button>
-          <button
-            onClick={handleCopySql}
-            className="py-2.5 px-4 rounded-xl bg-[#111] hover:bg-white/10 text-white text-xs font-bold border border-white/15 flex items-center gap-1.5 transition-colors cursor-pointer"
-          >
-            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-white/80" />}
-            <span>{copied ? 'SQL Copied' : 'Copy D1 SQL'}</span>
-          </button>
-          <button
-            onClick={handleDownloadSql}
-            className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#FF2E88] to-[#8B5CF6] hover:opacity-90 text-white text-xs font-bold shadow-[0_0_15px_rgba(255,46,136,0.3)] flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <Download className="w-4 h-4" />
-            <span>Download .sql</span>
-          </button>
-        </div>
-      </div>
-
-      {syncMessage && (
-        <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono rounded-xl flex items-center gap-2">
-          <Check className="w-4 h-4" />
-          <span>{syncMessage}</span>
-        </div>
-      )}
-
-      {/* Schema Constraints Highlight */}
-      <div className="bg-[#0A0A0B] border border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-            <ShieldCheck className="w-5 h-5 text-emerald-400" />
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-              Enforced D1 Partial Unique Index:
-            </h4>
-            <p className="text-xs font-mono text-emerald-400 mt-0.5">
-              CREATE UNIQUE INDEX uq_prevent_table_double_booking ON bookings (table_id, booking_date) WHERE status IN ('confirmed', 'pending');
-            </p>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleReset}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 transition"
+              title="Reset state to seed.sql"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Reset Seed</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-sm"
+            >
+              ✕
+            </button>
           </div>
         </div>
 
-        <button
-          onClick={handleReset}
-          className="text-xs px-3 py-1.5 rounded-lg bg-[#111] hover:bg-white/10 text-white/50 hover:text-white border border-white/10 flex items-center gap-1 shrink-0 cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Clear Cache & Sync D1</span>
-        </button>
-      </div>
-
-      {/* Table Selector Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {[
-          { id: 'bookings', label: 'bookings', count: bookings.length },
-          { id: 'club_tables', label: 'club_tables', count: clubTables.length },
-          { id: 'table_types', label: 'table_types', count: tableTypes.length },
-          { id: 'clubs', label: 'clubs', count: clubs.length },
-          { id: 'users', label: 'users', count: users.length },
-        ].map(t => (
+        {/* Tab Selector */}
+        <div className="flex border-b border-zinc-800 px-6 bg-zinc-950/40">
           <button
-            key={t.id}
-            onClick={() => setActiveTable(t.id as any)}
-            className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTable === t.id
-                ? 'bg-gradient-to-r from-[#FF2E88] to-[#8B5CF6] text-white shadow-[0_0_15px_rgba(255,46,136,0.25)]'
-                : 'bg-[#0A0A0B] text-white/60 hover:text-white border border-white/10 hover:border-white/20'
+            onClick={() => setActiveTab('tables')}
+            className={`flex items-center space-x-2 py-3 px-4 text-xs font-medium border-b-2 transition ${
+              activeTab === 'tables' ? 'border-orange-500 text-orange-400' : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Table className="w-3.5 h-3.5" />
-            <span>{t.label}</span>
-            <span className="px-1.5 py-0.2 text-[10px] rounded-md bg-black/50 text-white/80">
-              {t.count}
-            </span>
+            <Layers className="w-4 h-4" />
+            <span>Table Inspector ({venues.length + bookings.length + guestlists.length + users.length} Rows)</span>
           </button>
-        ))}
-      </div>
-
-      {/* Table Data Preview */}
-      <div className="bg-[#0A0A0B] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-        <div className="p-4 border-b border-white/10 bg-[#050505] flex items-center justify-between">
-          <span className="text-xs font-mono font-bold text-white/90 flex items-center gap-2">
-            <Code className="w-4 h-4 text-[#FF2E88]" />
-            SELECT * FROM {activeTable}
-          </span>
-          <span className="text-xs text-white/40">Live Browser D1 Store</span>
+          <button
+            onClick={() => setActiveTab('ledger')}
+            className={`flex items-center space-x-2 py-3 px-4 text-xs font-medium border-b-2 transition ${
+              activeTab === 'ledger' ? 'border-orange-500 text-orange-400' : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <DollarSign className="w-4 h-4" />
+            <span>Double-Entry Ledger ({ledgerTx.length} Txns)</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('ddl')}
+            className={`flex items-center space-x-2 py-3 px-4 text-xs font-medium border-b-2 transition ${
+              activeTab === 'ddl' ? 'border-orange-500 text-orange-400' : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Terminal className="w-4 h-4" />
+            <span>SQL DDL Schema</span>
+          </button>
         </div>
 
-        <div className="overflow-x-auto">
-          {activeTable === 'bookings' && (
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-[#050505] text-white/50 border-b border-white/10">
-                <tr>
-                  <th className="p-3">id</th>
-                  <th className="p-3">club_id</th>
-                  <th className="p-3">table_id</th>
-                  <th className="p-3">booking_date</th>
-                  <th className="p-3">arrival_time</th>
-                  <th className="p-3">pax</th>
-                  <th className="p-3">min_spend_cents</th>
-                  <th className="p-3">deposit_paid_cents</th>
-                  <th className="p-3">status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 text-white/80">
-                {bookings.map(b => (
-                  <tr key={b.id} className="hover:bg-white/5 transition-colors">
-                    <td className="p-3 text-[#FF2E88]">{b.id}</td>
-                    <td className="p-3">{b.club_id}</td>
-                    <td className="p-3 text-[#8B5CF6] font-bold">{b.table_id}</td>
-                    <td className="p-3">{b.booking_date}</td>
-                    <td className="p-3">{b.arrival_time}</td>
-                    <td className="p-3">{b.guest_count}</td>
-                    <td className="p-3 font-mono">{b.min_spend_cents}</td>
-                    <td className="p-3 text-emerald-400 font-mono">{b.deposit_paid_cents}</td>
-                    <td className="p-3 font-bold">{b.status}</td>
-                  </tr>
+        {/* Body Content */}
+        <div className="flex-1 overflow-y-auto p-6 bg-zinc-900/60">
+          {activeTab === 'tables' && (
+            <div className="space-y-4">
+              {/* Table Buttons */}
+              <div className="flex flex-wrap gap-2 pb-2 border-b border-zinc-800">
+                {[
+                  { name: 'venues', count: venues.length },
+                  { name: 'tables', count: 18 },
+                  { name: 'table_bookings', count: bookings.length },
+                  { name: 'guestlists', count: guestlists.length },
+                  { name: 'users', count: users.length },
+                  { name: 'ledger_postings', count: ledgerPostings.length }
+                ].map(t => (
+                  <button
+                    key={t.name}
+                    onClick={() => setSelectedTable(t.name)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-mono transition ${
+                      selectedTable === t.name
+                        ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
+                    }`}
+                  >
+                    {t.name} <span className="text-[10px] opacity-70">({t.count})</span>
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Data Table */}
+              <div className="rounded-xl border border-zinc-800 overflow-x-auto bg-zinc-950/60">
+                {selectedTable === 'venues' && (
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-zinc-800/60 text-zinc-400 border-b border-zinc-700/60">
+                      <tr>
+                        <th className="p-3">id</th>
+                        <th className="p-3">name</th>
+                        <th className="p-3">address</th>
+                        <th className="p-3">hours</th>
+                        <th className="p-3">cutoff</th>
+                        <th className="p-3">occupancy / max</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
+                      {venues.map(v => (
+                        <tr key={v.id} className="hover:bg-zinc-800/30">
+                          <td className="p-3 text-orange-400 font-semibold">{v.id}</td>
+                          <td className="p-3 text-white">{v.name}</td>
+                          <td className="p-3 text-zinc-400 max-w-xs truncate">{v.address}</td>
+                          <td className="p-3">{v.open_time} - {v.close_time}</td>
+                          <td className="p-3 text-amber-400">{v.guestlist_cutoff_time}</td>
+                          <td className="p-3">
+                            <span className="text-emerald-400">{v.current_occupancy}</span> / {v.max_capacity}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTable === 'tables' && (
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-zinc-800/60 text-zinc-400 border-b border-zinc-700/60">
+                      <tr>
+                        <th className="p-3">id</th>
+                        <th className="p-3">venue_id</th>
+                        <th className="p-3">table_number</th>
+                        <th className="p-3">category</th>
+                        <th className="p-3">capacity</th>
+                        <th className="p-3">min_spend_php</th>
+                        <th className="p-3">deposit_required_php</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
+                      {clientStore.getTablesByVenue('ven_kazmik').concat(clientStore.getTablesByVenue('ven_trademark')).map(t => (
+                        <tr key={t.id} className="hover:bg-zinc-800/30">
+                          <td className="p-3 text-orange-400">{t.id}</td>
+                          <td className="p-3 text-zinc-400">{t.venue_id}</td>
+                          <td className="p-3 text-white font-semibold">{t.table_number}</td>
+                          <td className="p-3"><span className="px-2 py-0.5 bg-zinc-800 rounded">{t.category}</span></td>
+                          <td className="p-3">{t.capacity} pax</td>
+                          <td className="p-3 text-emerald-400">{formatPHP(t.min_spend_php)}</td>
+                          <td className="p-3 text-amber-400">{formatPHP(t.deposit_required_php)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTable === 'table_bookings' && (
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-zinc-800/60 text-zinc-400 border-b border-zinc-700/60">
+                      <tr>
+                        <th className="p-3">booking_ref</th>
+                        <th className="p-3">venue_id</th>
+                        <th className="p-3">table_id</th>
+                        <th className="p-3">date</th>
+                        <th className="p-3">deposit (PHP)</th>
+                        <th className="p-3">promoter</th>
+                        <th className="p-3">status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
+                      {bookings.map(b => (
+                        <tr key={b.id} className="hover:bg-zinc-800/30">
+                          <td className="p-3 text-orange-400 font-bold">{b.booking_ref}</td>
+                          <td className="p-3 text-zinc-400">{b.venue_id}</td>
+                          <td className="p-3 text-white">{b.table_id}</td>
+                          <td className="p-3">{b.target_date}</td>
+                          <td className="p-3 text-emerald-400">{formatPHP(b.deposit_amount_php)}</td>
+                          <td className="p-3 text-purple-300">{b.promoter_code || '—'}</td>
+                          <td className="p-3">
+                            <span className="px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded">
+                              {b.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTable === 'guestlists' && (
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-zinc-800/60 text-zinc-400 border-b border-zinc-700/60">
+                      <tr>
+                        <th className="p-3">pass_ref</th>
+                        <th className="p-3">venue_id</th>
+                        <th className="p-3">user_id</th>
+                        <th className="p-3">target_date</th>
+                        <th className="p-3">guest_count</th>
+                        <th className="p-3">cutoff_time</th>
+                        <th className="p-3">status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
+                      {guestlists.map(g => (
+                        <tr key={g.id} className="hover:bg-zinc-800/30">
+                          <td className="p-3 text-orange-400 font-bold">{g.pass_ref}</td>
+                          <td className="p-3 text-zinc-400">{g.venue_id}</td>
+                          <td className="p-3 text-white">{g.user_id}</td>
+                          <td className="p-3">{g.target_date}</td>
+                          <td className="p-3">{g.guest_count} pax</td>
+                          <td className="p-3 text-amber-400">{g.cutoff_time}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded border ${
+                              g.status === 'ACTIVE' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' :
+                              g.status === 'CHECKED_IN' ? 'bg-blue-950 text-blue-300 border-blue-800' :
+                              'bg-rose-950 text-rose-300 border-rose-800'
+                            }`}>
+                              {g.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTable === 'users' && (
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-zinc-800/60 text-zinc-400 border-b border-zinc-700/60">
+                      <tr>
+                        <th className="p-3">id</th>
+                        <th className="p-3">full_name</th>
+                        <th className="p-3">email</th>
+                        <th className="p-3">phone_number</th>
+                        <th className="p-3">role</th>
+                        <th className="p-3">promoter_code</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
+                      {users.map(u => (
+                        <tr key={u.id} className="hover:bg-zinc-800/30">
+                          <td className="p-3 text-orange-400">{u.id}</td>
+                          <td className="p-3 text-white font-semibold">{u.full_name}</td>
+                          <td className="p-3 text-zinc-400">{u.email}</td>
+                          <td className="p-3">{u.phone_number}</td>
+                          <td className="p-3">
+                            <span className="px-2 py-0.5 bg-zinc-800 text-zinc-300 rounded">{u.role}</span>
+                          </td>
+                          <td className="p-3 text-purple-400">{u.promoter_code || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTable === 'ledger_postings' && (
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-zinc-800/60 text-zinc-400 border-b border-zinc-700/60">
+                      <tr>
+                        <th className="p-3">id</th>
+                        <th className="p-3">transaction_id</th>
+                        <th className="p-3">account</th>
+                        <th className="p-3">type</th>
+                        <th className="p-3">amount_php</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
+                      {ledgerPostings.map(p => (
+                        <tr key={p.id} className="hover:bg-zinc-800/30">
+                          <td className="p-3 text-orange-400">{p.id}</td>
+                          <td className="p-3 text-zinc-400">{p.transaction_id}</td>
+                          <td className="p-3 text-white font-semibold">{p.account}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded font-bold ${
+                              p.posting_type === 'DEBIT' ? 'text-cyan-400 bg-cyan-950' : 'text-amber-400 bg-amber-950'
+                            }`}>
+                              {p.posting_type}
+                            </span>
+                          </td>
+                          <td className="p-3 text-emerald-400 font-bold">{formatPHP(p.amount_php)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
           )}
 
-          {activeTable === 'club_tables' && (
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-[#050505] text-white/50 border-b border-white/10">
-                <tr>
-                  <th className="p-3">id</th>
-                  <th className="p-3">club_id</th>
-                  <th className="p-3">table_type_id</th>
-                  <th className="p-3">table_number</th>
-                  <th className="p-3">location_description</th>
-                  <th className="p-3">is_active</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 text-white/80">
-                {clubTables.map(t => (
-                  <tr key={t.id} className="hover:bg-white/5 transition-colors">
-                    <td className="p-3 text-[#FF2E88]">{t.id}</td>
-                    <td className="p-3">{t.club_id}</td>
-                    <td className="p-3 text-[#8B5CF6]">{t.table_type_id}</td>
-                    <td className="p-3 font-bold text-white">{t.table_number}</td>
-                    <td className="p-3 text-white/50">{t.location_description}</td>
-                    <td className="p-3">{t.is_active}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {activeTab === 'ledger' && (
+            <div className="space-y-6">
+              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                    <h4 className="text-sm font-semibold text-white">Double-Entry Cryptographic Balance</h4>
+                  </div>
+                  <span className="text-xs text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800 font-mono">
+                    Balanced Debits == Credits
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400">
+                  Every table reservation deposit automatically journals balanced debit/credit entries to cash receivable, venue payable, promoter commission, and platform revenue.
+                </p>
+              </div>
+
+              {/* Transactions List */}
+              <div className="space-y-4">
+                {ledgerTx.map(tx => {
+                  const postings = ledgerPostings.filter(p => p.transaction_id === tx.id);
+                  const debits = postings.filter(p => p.posting_type === 'DEBIT').reduce((s, p) => s + p.amount_php, 0);
+                  const credits = postings.filter(p => p.posting_type === 'CREDIT').reduce((s, p) => s + p.amount_php, 0);
+
+                  return (
+                    <div key={tx.id} className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 font-mono text-xs space-y-3">
+                      <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-orange-400 font-bold">{tx.transaction_ref}</span>
+                          <span className="text-zinc-500">|</span>
+                          <span className="text-zinc-300">{tx.description}</span>
+                        </div>
+                        <span className="text-zinc-500 text-[11px]">{tx.timestamp}</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <span className="text-[10px] text-zinc-500 uppercase">Block Hash (SHA-256):</span>
+                          <p className="text-[11px] text-purple-400 truncate">{tx.block_hash}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[10px] text-zinc-500 uppercase">Previous Hash:</span>
+                          <p className="text-[11px] text-zinc-500 truncate">{tx.previous_hash}</p>
+                        </div>
+                      </div>
+
+                      {/* Postings table */}
+                      <div className="rounded-lg bg-zinc-900/80 p-3 space-y-2 border border-zinc-800/80">
+                        {postings.map(p => (
+                          <div key={p.id} className="flex items-center justify-between text-xs">
+                            <span className="text-zinc-300">{p.account}</span>
+                            <div className="flex items-center space-x-3">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                p.posting_type === 'DEBIT' ? 'bg-cyan-950 text-cyan-300' : 'bg-amber-950 text-amber-300'
+                              }`}>
+                                {p.posting_type}
+                              </span>
+                              <span className="text-emerald-400 font-semibold">{formatPHP(p.amount_php)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-zinc-800 text-[11px]">
+                        <span className="text-zinc-400">Total Debits: <strong className="text-cyan-400">{formatPHP(debits)}</strong></span>
+                        <span className="text-zinc-400">Total Credits: <strong className="text-amber-400">{formatPHP(credits)}</strong></span>
+                        <span className="text-emerald-400 font-bold">Δ = {formatPHP(debits - credits)} (Zero Balance)</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
 
-          {activeTable === 'table_types' && (
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-[#050505] text-white/50 border-b border-white/10">
-                <tr>
-                  <th className="p-3">id</th>
-                  <th className="p-3">club_id</th>
-                  <th className="p-3">name</th>
-                  <th className="p-3">min_spend_cents</th>
-                  <th className="p-3">deposit_cents</th>
-                  <th className="p-3">max_guests</th>
-                  <th className="p-3">is_active</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 text-white/80">
-                {tableTypes.map(tt => (
-                  <tr key={tt.id} className="hover:bg-white/5 transition-colors">
-                    <td className="p-3 text-[#FF2E88]">{tt.id}</td>
-                    <td className="p-3">{tt.club_id}</td>
-                    <td className="p-3 font-bold text-white">{tt.name}</td>
-                    <td className="p-3 text-emerald-400 font-mono">{tt.min_spend_cents}</td>
-                    <td className="p-3 text-emerald-400 font-mono">{tt.deposit_cents}</td>
-                    <td className="p-3">{tt.max_guests}</td>
-                    <td className="p-3">{tt.is_active}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-
-          {activeTable === 'clubs' && (
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-[#050505] text-white/50 border-b border-white/10">
-                <tr>
-                  <th className="p-3">id</th>
-                  <th className="p-3">name</th>
-                  <th className="p-3">slug</th>
-                  <th className="p-3">address</th>
-                  <th className="p-3">min_age</th>
-                  <th className="p-3">dress_code</th>
-                  <th className="p-3">is_active</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 text-white/80">
-                {clubs.map(c => (
-                  <tr key={c.id} className="hover:bg-white/5 transition-colors">
-                    <td className="p-3 text-[#FF2E88]">{c.id}</td>
-                    <td className="p-3 font-bold text-white">{c.name}</td>
-                    <td className="p-3 text-white/50">{c.slug}</td>
-                    <td className="p-3">{c.address}</td>
-                    <td className="p-3">{c.min_age}</td>
-                    <td className="p-3 text-white/50 truncate max-w-xs">{c.dress_code}</td>
-                    <td className="p-3">{c.is_active}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-
-          {activeTable === 'users' && (
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-[#050505] text-white/50 border-b border-white/10">
-                <tr>
-                  <th className="p-3">id</th>
-                  <th className="p-3">name</th>
-                  <th className="p-3">email</th>
-                  <th className="p-3">phone</th>
-                  <th className="p-3">role</th>
-                  <th className="p-3">created_at</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 text-white/80">
-                {users.map(u => (
-                  <tr key={u.id} className="hover:bg-white/5 transition-colors">
-                    <td className="p-3 text-[#FF2E88]">{u.id}</td>
-                    <td className="p-3 font-bold text-white">{u.name}</td>
-                    <td className="p-3">{u.email}</td>
-                    <td className="p-3">{u.phone}</td>
-                    <td className="p-3 font-bold text-[#8B5CF6]">{u.role}</td>
-                    <td className="p-3 text-white/40">{u.created_at}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {activeTab === 'ddl' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-400 font-mono">SQLite DDL Schema (users, venues, tables, table_bookings, guestlists, ledger)</span>
+                <button
+                  onClick={handleCopyDDL}
+                  className="flex items-center space-x-1 px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300"
+                >
+                  {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? 'Copied' : 'Copy DDL'}</span>
+                </button>
+              </div>
+              <pre className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 text-xs font-mono text-zinc-300 overflow-x-auto whitespace-pre leading-relaxed">
+                {ddlStatements.join('\n\n')}
+              </pre>
+            </div>
           )}
         </div>
       </div>
-
     </div>
   );
 };

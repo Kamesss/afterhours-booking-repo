@@ -1,574 +1,364 @@
-import {
-  Club,
-  TableType,
-  ClubTable,
-  Booking,
-  BookingStatus,
-  GuestListEntry,
-  User,
-  UserRole
+// ============================================================================
+// AFTERHOURS CEBU - CLIENT-SIDE DATA STORE & D1 SYNC ADAPTER
+// ============================================================================
+import { 
+  Venue, 
+  TableItem, 
+  TableBooking, 
+  GuestlistEntry, 
+  User, 
+  LedgerTransaction, 
+  LedgerPosting, 
+  D1FullExport 
 } from '../types';
-import {
-  SEED_USERS,
-  SEED_CLUBS,
-  SEED_TABLE_TYPES,
-  SEED_CLUB_TABLES,
-  SEED_BOOKINGS,
-  SEED_GUESTLIST
+import { 
+  SEED_VENUES, 
+  SEED_TABLES, 
+  SEED_BOOKINGS, 
+  SEED_GUESTLISTS, 
+  SEED_USERS, 
+  SEED_LEDGER_TRANSACTIONS, 
+  SEED_LEDGER_POSTINGS 
 } from './seedData';
 
 const STORAGE_KEYS = {
-  USERS: 'afterhours_users_v1',
-  CLUBS: 'afterhours_clubs_v1',
-  TABLE_TYPES: 'afterhours_table_types_v1',
-  CLUB_TABLES: 'afterhours_club_tables_v1',
-  BOOKINGS: 'afterhours_bookings_v1',
-  GUESTLIST: 'afterhours_guestlist_v1',
-  CURRENT_USER: 'afterhours_current_user_v1',
+  VENUES: 'afterhours_cebu_venues_v2',
+  TABLES: 'afterhours_cebu_tables_v2',
+  BOOKINGS: 'afterhours_cebu_bookings_v2',
+  GUESTLIST: 'afterhours_cebu_guestlists_v2',
+  USERS: 'afterhours_cebu_users_v2',
+  LEDGER_TX: 'afterhours_cebu_ledger_tx_v2',
+  LEDGER_POSTINGS: 'afterhours_cebu_ledger_postings_v2',
+  CURRENT_USER_ID: 'afterhours_cebu_current_user_v2'
 };
 
-function safeLoad<T>(key: string, fallback: T): T {
-  try {
-    const item = localStorage.getItem(key);
-    if (!item) return fallback;
-    return JSON.parse(item);
-  } catch (e) {
-    console.error(`Failed to load ${key} from storage:`, e);
-    return fallback;
-  }
-}
-
-function safeSave<T>(key: string, data: T): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch (e) {
-    console.error(`Failed to save ${key} to storage:`, e);
-  }
-}
-
-const DEFAULT_USER: User = {
-  id: 'usr_guest1',
-  name: 'Marco Villamor',
-  email: 'marco.cebu@gmail.com',
-  phone: '+63 917 555 1201',
-  role: 'user',
-  created_at: new Date().toISOString(),
-};
-
-type Listener = () => void;
-
-class AfterHoursDatabase {
+class ClientDataStore {
+  private venues: Venue[] = [];
+  private tables: TableItem[] = [];
+  private bookings: TableBooking[] = [];
+  private guestlists: GuestlistEntry[] = [];
   private users: User[] = [];
-  private clubs: Club[] = [];
-  private tableTypes: TableType[] = [];
-  private clubTables: ClubTable[] = [];
-  private bookings: Booking[] = [];
-  private guestList: GuestListEntry[] = [];
-  private currentUser: User = DEFAULT_USER;
-  private listeners: Set<Listener> = new Set();
-  public isLoadedFromD1: boolean = false;
+  private ledgerTransactions: LedgerTransaction[] = [];
+  private ledgerPostings: LedgerPosting[] = [];
+  private currentUserId: string = 'usr_c01';
+  private initialized: boolean = false;
 
   constructor() {
-    this.users = safeLoad<User[]>(STORAGE_KEYS.USERS, SEED_USERS);
-    this.clubs = safeLoad<Club[]>(STORAGE_KEYS.CLUBS, SEED_CLUBS);
-    this.tableTypes = safeLoad<TableType[]>(STORAGE_KEYS.TABLE_TYPES, SEED_TABLE_TYPES);
-    this.clubTables = safeLoad<ClubTable[]>(STORAGE_KEYS.CLUB_TABLES, SEED_CLUB_TABLES);
-    this.bookings = safeLoad<Booking[]>(STORAGE_KEYS.BOOKINGS, SEED_BOOKINGS);
-    this.guestList = safeLoad<GuestListEntry[]>(STORAGE_KEYS.GUESTLIST, SEED_GUESTLIST);
-    this.currentUser = safeLoad<User>(STORAGE_KEYS.CURRENT_USER, DEFAULT_USER);
+    this.loadFromLocalStorage();
+  }
 
-    // Fetch live tables directly from Cloudflare D1
-    if (typeof window !== 'undefined') {
-      this.syncFromD1();
+  private loadFromLocalStorage(): void {
+    try {
+      const v = localStorage.getItem(STORAGE_KEYS.VENUES);
+      const t = localStorage.getItem(STORAGE_KEYS.TABLES);
+      const b = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
+      const g = localStorage.getItem(STORAGE_KEYS.GUESTLIST);
+      const u = localStorage.getItem(STORAGE_KEYS.USERS);
+      const tx = localStorage.getItem(STORAGE_KEYS.LEDGER_TX);
+      const post = localStorage.getItem(STORAGE_KEYS.LEDGER_POSTINGS);
+      const cu = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
+
+      this.venues = v ? JSON.parse(v) : SEED_VENUES;
+      this.tables = t ? JSON.parse(t) : SEED_TABLES;
+      this.bookings = b ? JSON.parse(b) : SEED_BOOKINGS;
+      this.guestlists = g ? JSON.parse(g) : SEED_GUESTLISTS;
+      this.users = u ? JSON.parse(u) : SEED_USERS;
+      this.ledgerTransactions = tx ? JSON.parse(tx) : SEED_LEDGER_TRANSACTIONS;
+      this.ledgerPostings = post ? JSON.parse(post) : SEED_LEDGER_POSTINGS;
+      this.currentUserId = cu || 'usr_c01';
+    } catch (e) {
+      console.warn('Fallback to seed definitions', e);
+      this.venues = SEED_VENUES;
+      this.tables = SEED_TABLES;
+      this.bookings = SEED_BOOKINGS;
+      this.guestlists = SEED_GUESTLISTS;
+      this.users = SEED_USERS;
+      this.ledgerTransactions = SEED_LEDGER_TRANSACTIONS;
+      this.ledgerPostings = SEED_LEDGER_POSTINGS;
     }
   }
 
-  public subscribe(fn: Listener): () => void {
-    this.listeners.add(fn);
-    return () => {
-      this.listeners.delete(fn);
-    };
+  private saveToLocalStorage(): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.VENUES, JSON.stringify(this.venues));
+      localStorage.setItem(STORAGE_KEYS.TABLES, JSON.stringify(this.tables));
+      localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(this.bookings));
+      localStorage.setItem(STORAGE_KEYS.GUESTLIST, JSON.stringify(this.guestlists));
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(this.users));
+      localStorage.setItem(STORAGE_KEYS.LEDGER_TX, JSON.stringify(this.ledgerTransactions));
+      localStorage.setItem(STORAGE_KEYS.LEDGER_POSTINGS, JSON.stringify(this.ledgerPostings));
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, this.currentUserId);
+    } catch (e) {
+      console.error('Failed to save to localStorage:', e);
+    }
   }
 
-  private notify(): void {
-    this.listeners.forEach(fn => {
-      try {
-        fn();
-      } catch (e) {
-        console.error('Subscriber notification error:', e);
-      }
-    });
-  }
-
-  // Fetch live tables directly from Cloudflare D1 API
-  public async syncFromD1(): Promise<boolean> {
+  public async syncWithServer(): Promise<boolean> {
     try {
       const res = await fetch('/api/d1-dump');
       if (res.ok) {
-        const data = await res.json();
-        if (data.clubs && Array.isArray(data.clubs)) {
-          this.clubs = data.clubs;
-          safeSave(STORAGE_KEYS.CLUBS, this.clubs);
+        const data: D1FullExport = await res.json();
+        if (data && data.venues && data.venues.length > 0) {
+          this.venues = data.venues;
+          this.tables = data.tables || [];
+          this.bookings = data.table_bookings || [];
+          this.guestlists = data.guestlists || [];
+          this.users = data.users || [];
+          this.ledgerTransactions = data.ledger_transactions || [];
+          this.ledgerPostings = data.ledger_postings || [];
+          this.saveToLocalStorage();
+          return true;
         }
-        if (data.users && Array.isArray(data.users)) {
-          this.users = data.users;
-          safeSave(STORAGE_KEYS.USERS, this.users);
-          if (this.users.length > 0 && !this.users.some(u => u.id === this.currentUser.id)) {
-            this.currentUser = this.users[0];
-            safeSave(STORAGE_KEYS.CURRENT_USER, this.currentUser);
-          }
-        }
-        if (data.table_types && Array.isArray(data.table_types)) {
-          this.tableTypes = data.table_types;
-          safeSave(STORAGE_KEYS.TABLE_TYPES, this.tableTypes);
-        }
-        if (data.club_tables && Array.isArray(data.club_tables)) {
-          this.clubTables = data.club_tables;
-          safeSave(STORAGE_KEYS.CLUB_TABLES, this.clubTables);
-        }
-        if (data.bookings && Array.isArray(data.bookings)) {
-          this.bookings = data.bookings;
-          safeSave(STORAGE_KEYS.BOOKINGS, this.bookings);
-        }
-        if (data.guest_list && Array.isArray(data.guest_list)) {
-          this.guestList = data.guest_list;
-          safeSave(STORAGE_KEYS.GUESTLIST, this.guestList);
-        }
-        this.isLoadedFromD1 = true;
-        this.notify();
-        return true;
       }
-    } catch (e) {
-      console.log('D1 live sync error:', e);
+    } catch (err) {
+      // Offline fallback
     }
     return false;
   }
 
-  // Current User management
-  public getCurrentUser(): User {
-    return this.currentUser;
+  // --- GETTERS ---
+  public getVenues(): Venue[] {
+    return this.venues;
   }
 
-  public switchUser(userOrRole: UserRole | string): User {
-    let found: User | undefined;
-    if (userOrRole === 'user' || userOrRole === 'club_admin' || userOrRole === 'superadmin') {
-      found = this.users.find(u => u.role === userOrRole);
-    } else {
-      found = this.users.find(u => u.id === userOrRole || u.email === userOrRole);
-    }
-    if (found) {
-      this.currentUser = found;
-      safeSave(STORAGE_KEYS.CURRENT_USER, this.currentUser);
-      this.notify();
-    }
-    return this.currentUser;
+  public getVenueById(id: string): Venue | undefined {
+    return this.venues.find(v => v.id === id);
   }
 
-  // Getters
+  public getTablesByVenue(venueId: string): TableItem[] {
+    return this.tables.filter(t => t.venue_id === venueId && t.is_active === 1);
+  }
+
+  public getTableById(id: string): TableItem | undefined {
+    return this.tables.find(t => t.id === id);
+  }
+
+  public getBookings(venueId?: string, targetDate?: string): TableBooking[] {
+    let result = this.bookings;
+    if (venueId) result = result.filter(b => b.venue_id === venueId);
+    if (targetDate) result = result.filter(b => b.target_date === targetDate);
+    return result;
+  }
+
+  public getGuestlists(venueId?: string, targetDate?: string): GuestlistEntry[] {
+    let result = this.guestlists;
+    if (venueId) result = result.filter(g => g.venue_id === venueId);
+    if (targetDate) result = result.filter(g => g.target_date === targetDate);
+    return result;
+  }
+
   public getUsers(): User[] {
-    return [...this.users];
+    return this.users;
   }
 
-  public getClubs(): Club[] {
-    return [...this.clubs];
+  public getCurrentUser(): User {
+    const user = this.users.find(u => u.id === this.currentUserId);
+    return user || this.users[0] || SEED_USERS[0];
   }
 
-  public getClubById(clubId: string): Club | undefined {
-    return this.clubs.find(c => c.id === clubId);
+  public setCurrentUserId(id: string): void {
+    this.currentUserId = id;
+    this.saveToLocalStorage();
   }
 
-  public getClubBySlug(slug: string): Club | undefined {
-    return this.clubs.find(c => c.slug === slug);
+  public getLedgerTransactions(): LedgerTransaction[] {
+    return this.ledgerTransactions;
   }
 
-  public getTableTypes(clubId?: string): TableType[] {
-    if (!clubId) return [...this.tableTypes];
-    return this.tableTypes.filter(tt => tt.club_id === clubId);
+  public getLedgerPostings(): LedgerPosting[] {
+    return this.ledgerPostings;
   }
 
-  public getClubTables(clubId?: string): ClubTable[] {
-    if (!clubId) return [...this.clubTables];
-    return this.clubTables.filter(t => t.club_id === clubId);
-  }
-
-  public getBookings(clubId?: string, date?: string): Booking[] {
-    return this.bookings.filter(b => {
-      if (clubId && b.club_id !== clubId) return false;
-      if (date && b.booking_date !== date) return false;
-      return true;
-    });
-  }
-
-  public getUserBookings(userId: string): Booking[] {
-    return this.bookings.filter(b => b.user_id === userId);
-  }
-
-  public getGuestList(clubId?: string, date?: string): GuestListEntry[] {
-    return this.guestList.filter(gl => {
-      if (clubId && gl.club_id !== clubId) return false;
-      if (date && gl.event_date !== date) return false;
-      return true;
-    });
-  }
-
-  public getUserGuestList(userId: string): GuestListEntry[] {
-    return this.guestList.filter(gl => gl.user_id === userId);
-  }
-
-  // Check Table Availability according to D1 Partial Unique Index:
-  // CREATE UNIQUE INDEX IF NOT EXISTS uq_prevent_table_double_booking 
-  // ON bookings (table_id, booking_date) WHERE status IN ('confirmed', 'pending');
-  public isTableAvailable(tableId: string, bookingDate: string): boolean {
-    const existing = this.bookings.find(
-      b => b.table_id === tableId &&
-           b.booking_date === bookingDate &&
-           (b.status === 'confirmed' || b.status === 'pending')
+  public isTableBooked(tableId: string, targetDate: string): boolean {
+    return this.bookings.some(
+      b => b.table_id === tableId && 
+           b.target_date === targetDate && 
+           (b.status === 'CONFIRMED' || b.status === 'CHECKED_IN')
     );
-    return !existing;
   }
 
-  public getTableBookingStatus(tableId: string, bookingDate: string): { isAvailable: boolean; booking?: Booking } {
-    const booking = this.bookings.find(
-      b => b.table_id === tableId &&
-           b.booking_date === bookingDate &&
-           (b.status === 'confirmed' || b.status === 'pending')
-    );
-    return {
-      isAvailable: !booking,
-      booking
-    };
-  }
-
-  // Create Booking strictly matching D1 schema
-  public async createBooking(payload: {
-    club_id: string;
+  // --- ACTIONS ---
+  public async createBooking(params: {
+    venue_id: string;
     table_id: string;
-    user_id: string;
-    booking_date: string;
-    arrival_time: string;
+    target_date: string;
     guest_count: number;
-    min_spend_cents: number;
-    deposit_paid_cents: number;
-    special_requests?: string;
-    ambassador_promo_code?: string;
-    customer_name: string;
-    customer_email: string;
-    customer_phone: string;
-    payment_method: 'GCash' | 'Maya' | 'Card' | 'Club Pay at Door' | string;
-  }): Promise<{ success: boolean; booking?: Booking; error?: string }> {
-    const isFree = this.isTableAvailable(payload.table_id, payload.booking_date);
-    if (!isFree) {
-      return {
-        success: false,
-        error: `Table is already booked on ${payload.booking_date} (Full-day table lock active).`
-      };
-    }
+    deposit_amount_php: number;
+    min_spend_php: number;
+    promoter_code?: string | null;
+    payment_method?: string;
+  }): Promise<TableBooking> {
+    const randomRefNum = Math.floor(1000 + Math.random() * 9000);
+    const bookingRef = `AH-CEB-${randomRefNum}`;
+    const id = `bk_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
+    const idempotencyKey = `idemp_bk_${randomRefNum}_${Math.random().toString(36).substring(2, 8)}`;
 
-    const bookingId = `bkg_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
-    const createdAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    const qrCode = `AH-${payload.club_id.toUpperCase()}-${Date.now().toString().slice(-6)}`;
-    const commissionCents = Math.round(payload.min_spend_cents * 0.10);
-
-    const newBooking: Booking = {
-      id: bookingId,
-      club_id: payload.club_id,
-      table_id: payload.table_id,
-      user_id: payload.user_id,
-      booking_date: payload.booking_date,
-      arrival_time: payload.arrival_time,
-      guest_count: payload.guest_count,
-      min_spend_cents: payload.min_spend_cents,
-      deposit_paid_cents: payload.deposit_paid_cents,
-      status: 'confirmed',
-      special_requests: payload.special_requests || '',
-      created_at: createdAt,
-      qr_code: qrCode,
-      ambassador_promo_code: payload.ambassador_promo_code,
-      commission_cents: commissionCents,
-      customer_name: payload.customer_name,
-      customer_email: payload.customer_email,
-      customer_phone: payload.customer_phone,
-      payment_method: payload.payment_method,
+    const newBooking: TableBooking = {
+      id,
+      booking_ref: bookingRef,
+      venue_id: params.venue_id,
+      table_id: params.table_id,
+      user_id: this.currentUserId,
+      target_date: params.target_date,
+      guest_count: params.guest_count,
+      deposit_amount_php: params.deposit_amount_php,
+      min_spend_php: params.min_spend_php,
+      status: 'CONFIRMED',
+      idempotency_key: idempotencyKey,
+      hold_expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      promoter_code: params.promoter_code || null,
+      payment_method: params.payment_method || 'GCASH',
+      payment_reference: `PAYMONGO_${Date.now()}`,
+      checked_in_at: null,
+      created_at: new Date().toISOString()
     };
 
-    // Optimistically update local state
-    this.bookings.unshift(newBooking);
-    safeSave(STORAGE_KEYS.BOOKINGS, this.bookings);
-    this.notify();
-
-    // Persist to Cloudflare D1
+    // Try server call first
     try {
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newBooking),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to persist booking in D1');
-      }
-      const data = await res.json();
-      if (data.booking) {
-        const idx = this.bookings.findIndex(b => b.id === newBooking.id);
-        if (idx !== -1) {
-          this.bookings[idx] = data.booking;
-          safeSave(STORAGE_KEYS.BOOKINGS, this.bookings);
-          this.notify();
-        }
-      }
-    } catch (e: any) {
-      console.error('D1 Booking creation error:', e);
-      return { success: false, error: e.message || 'Error writing to D1 database' };
-    }
-
-    return {
-      success: true,
-      booking: newBooking
-    };
-  }
-
-  // Join Guest List with D1 synchronization
-  public async joinGuestList(payload: {
-    club_id: string;
-    user_id: string;
-    event_date: string;
-    guest_name: string;
-    guest_email: string;
-    guest_phone: string;
-    pax: number;
-    arrival_time_estimate: string;
-    ambassador_perk?: string;
-  }): Promise<{ success: boolean; entry?: GuestListEntry; error?: string }> {
-    const entryId = `gl_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
-    const createdAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    const qrCode = `AH-GL-${entryId}`;
-
-    const newEntry: GuestListEntry = {
-      id: entryId,
-      club_id: payload.club_id,
-      user_id: payload.user_id,
-      event_date: payload.event_date,
-      guest_name: payload.guest_name,
-      guest_email: payload.guest_email,
-      guest_phone: payload.guest_phone,
-      pax: payload.pax,
-      arrival_time_estimate: payload.arrival_time_estimate,
-      status: 'valid',
-      qr_code: qrCode,
-      ambassador_perk: payload.ambassador_perk || '⚡ Free Ambassador VIP Entry',
-      created_at: createdAt,
-    };
-
-    this.guestList.unshift(newEntry);
-    safeSave(STORAGE_KEYS.GUESTLIST, this.guestList);
-    this.notify();
-
-    try {
-      const res = await fetch('/api/guest_list', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newEntry),
+        body: JSON.stringify(newBooking)
       });
       if (res.ok) {
-        const data = await res.json();
-        if (data.entry) {
-          const idx = this.guestList.findIndex(g => g.id === newEntry.id);
-          if (idx !== -1) {
-            this.guestList[idx] = data.entry;
-            safeSave(STORAGE_KEYS.GUESTLIST, this.guestList);
-            this.notify();
-          }
+        const json = await res.json();
+        if (json.data) {
+          this.bookings.unshift(json.data);
+          this.saveToLocalStorage();
+          return json.data;
         }
       }
     } catch (e) {
-      console.log('Guest list entry saved to store.');
+      // Local fallback
     }
 
-    return {
-      success: true,
-      entry: newEntry
-    };
+    // Local ledger entry
+    if (newBooking.deposit_amount_php > 0) {
+      const txId = `tx_${Date.now().toString(36)}`;
+      const txRef = `TXN-${params.target_date.replace(/-/g, '')}-${randomRefNum}`;
+      const gross = newBooking.deposit_amount_php;
+      const commission = params.promoter_code ? Math.round(gross * 0.10) : 0;
+      const platformFee = Math.round(gross * 0.035 + 15);
+      const venueNet = gross - commission - platformFee;
+
+      const tx: LedgerTransaction = {
+        id: txId,
+        transaction_ref: txRef,
+        reference_type: 'TABLE_DEPOSIT',
+        reference_id: newBooking.id,
+        idempotency_key: idempotencyKey,
+        description: `Table deposit hold for ${bookingRef}${params.promoter_code ? ` (Promoter: ${params.promoter_code})` : ''}`,
+        previous_hash: '0000000000000000000000000000000000000000000000000000000000000000',
+        block_hash: `blk_${Math.random().toString(36).substring(2, 12)}`,
+        timestamp: new Date().toISOString()
+      };
+
+      const p1: LedgerPosting = { id: `post_${Date.now()}_1`, transaction_id: txId, account: 'CASH_GATEWAY_RECEIVABLE', posting_type: 'DEBIT', amount_php: gross };
+      const p2: LedgerPosting = { id: `post_${Date.now()}_2`, transaction_id: txId, account: 'VENUE_PAYOUT_PAYABLE', posting_type: 'CREDIT', amount_php: venueNet };
+
+      this.ledgerTransactions.unshift(tx);
+      this.ledgerPostings.push(p1, p2);
+
+      if (commission > 0) {
+        this.ledgerPostings.push({ id: `post_${Date.now()}_3`, transaction_id: txId, account: 'PROMOTER_COMMISSION_PAYABLE', posting_type: 'CREDIT', amount_php: commission });
+      }
+      if (platformFee > 0) {
+        this.ledgerPostings.push({ id: `post_${Date.now()}_4`, transaction_id: txId, account: 'PLATFORM_REVENUE', posting_type: 'CREDIT', amount_php: platformFee });
+      }
+    }
+
+    this.bookings.unshift(newBooking);
+    this.saveToLocalStorage();
+    return newBooking;
   }
 
-  // Verify and check-in pass
-  public async verifyAndCheckIn(qrOrId: string): Promise<{
-    success: boolean;
-    type: 'booking' | 'guestlist' | 'unknown';
-    data?: Booking | GuestListEntry;
-    message: string;
-  }> {
+  public async createGuestlistPass(params: {
+    venue_id: string;
+    target_date: string;
+    guest_count: number;
+    promoter_code?: string | null;
+    cutoff_time: string;
+  }): Promise<GuestlistEntry> {
+    const randomRefNum = Math.floor(1000 + Math.random() * 9000);
+    const passRef = `GL-${params.venue_id.replace('ven_', '').toUpperCase()}-${randomRefNum}`;
+    const id = `gl_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
+
+    const newPass: GuestlistEntry = {
+      id,
+      pass_ref: passRef,
+      venue_id: params.venue_id,
+      user_id: this.currentUserId,
+      target_date: params.target_date,
+      guest_count: params.guest_count || 1,
+      promoter_code: params.promoter_code || null,
+      status: 'ACTIVE',
+      cutoff_time: params.cutoff_time,
+      checked_in_at: null,
+      created_at: new Date().toISOString()
+    };
+
     try {
-      const res = await fetch('/api/verify-pass', {
+      const res = await fetch('/api/guestlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qr_code: qrOrId }),
+        body: JSON.stringify(newPass)
       });
       if (res.ok) {
-        const data = await res.json();
-        await this.syncFromD1();
-        return data;
+        const json = await res.json();
+        if (json.data) {
+          this.guestlists.unshift(json.data);
+          this.saveToLocalStorage();
+          return json.data;
+        }
       }
     } catch (e) {
-      console.log('Using local verification fallback:', e);
+      // Local fallback
     }
 
-    const cleanCode = qrOrId.trim();
-    const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    this.guestlists.unshift(newPass);
+    this.saveToLocalStorage();
+    return newPass;
+  }
 
-    const booking = this.bookings.find(
-      b => b.qr_code === cleanCode || b.id === cleanCode
-    );
+  public async verifyAndCheckIn(refCode: string): Promise<{ success: boolean; message: string; passType?: string; data?: any }> {
+    const code = refCode.trim().toUpperCase();
 
+    // Check table booking
+    const booking = this.bookings.find(b => b.booking_ref === code);
     if (booking) {
-      if (booking.checked_in_at) {
-        return {
-          success: false,
-          type: 'booking',
-          data: booking,
-          message: `Already checked in at ${booking.checked_in_at}.`
-        };
-      }
-      booking.checked_in_at = now;
-      booking.status = 'completed';
-      safeSave(STORAGE_KEYS.BOOKINGS, this.bookings);
-      this.notify();
-
-      return {
-        success: true,
-        type: 'booking',
-        data: booking,
-        message: `VALID VIP TABLE PASS! Checked in table ${booking.table_id} for ${booking.guest_count} guests.`
-      };
+      booking.status = 'CHECKED_IN';
+      booking.checked_in_at = new Date().toISOString();
+      const venue = this.getVenueById(booking.venue_id);
+      if (venue) venue.current_occupancy = Math.min(venue.max_capacity, venue.current_occupancy + booking.guest_count);
+      this.saveToLocalStorage();
+      return { success: true, message: `VIP Table ${booking.booking_ref} checked in successfully!`, passType: 'TABLE_BOOKING', data: booking };
     }
 
-    const glEntry = this.guestList.find(
-      g => g.qr_code === cleanCode || g.id === cleanCode
-    );
-
-    if (glEntry) {
-      if (glEntry.checked_in_at || glEntry.status === 'checked_in') {
-        return {
-          success: false,
-          type: 'guestlist',
-          data: glEntry,
-          message: `Guest pass was already scanned at ${glEntry.checked_in_at || 'earlier'}.`
-        };
-      }
-      glEntry.checked_in_at = now;
-      glEntry.status = 'checked_in';
-      safeSave(STORAGE_KEYS.GUESTLIST, this.guestList);
-      this.notify();
-
-      return {
-        success: true,
-        type: 'guestlist',
-        data: glEntry,
-        message: `VALID GUEST LIST PASS! Admitted ${glEntry.guest_name} (+${glEntry.pax - 1} guests).`
-      };
+    // Check guestlist
+    const guestlist = this.guestlists.find(g => g.pass_ref === code);
+    if (guestlist) {
+      guestlist.status = 'CHECKED_IN';
+      guestlist.checked_in_at = new Date().toISOString();
+      const venue = this.getVenueById(guestlist.venue_id);
+      if (venue) venue.current_occupancy = Math.min(venue.max_capacity, venue.current_occupancy + guestlist.guest_count);
+      this.saveToLocalStorage();
+      return { success: true, message: `Guestlist Pass ${guestlist.pass_ref} checked in successfully!`, passType: 'GUESTLIST_PASS', data: guestlist };
     }
 
-    return {
-      success: false,
-      type: 'unknown',
-      message: 'Invalid pass code. Record not found in database.'
-    };
+    return { success: false, message: 'Invalid or unknown reference code' };
   }
 
-  // Update Booking Status
-  public async updateBookingStatus(bookingId: string, status: BookingStatus): Promise<boolean> {
-    const booking = this.bookings.find(b => b.id === bookingId);
-    if (!booking) return false;
-    booking.status = status;
-    safeSave(STORAGE_KEYS.BOOKINGS, this.bookings);
-    this.notify();
-
-    try {
-      await fetch(`/api/bookings/${bookingId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-    } catch (e) {
-      console.log('Status updated in local store.');
-    }
-    return true;
-  }
-
-  // Update Table Type / Pricing
-  public async updateTableType(tableTypeId: string, updates: Partial<TableType>): Promise<boolean> {
-    const tt = this.tableTypes.find(t => t.id === tableTypeId);
-    if (!tt) return false;
-    Object.assign(tt, updates);
-    safeSave(STORAGE_KEYS.TABLE_TYPES, this.tableTypes);
-    this.notify();
-
-    try {
-      await fetch(`/api/table_types/${tableTypeId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-    } catch (e) {
-      console.log('Table type updated in local store.');
-    }
-    return true;
-  }
-
-  // Clear local caches
-  public clearLocalCache(): void {
-    localStorage.removeItem(STORAGE_KEYS.USERS);
-    localStorage.removeItem(STORAGE_KEYS.CLUBS);
-    localStorage.removeItem(STORAGE_KEYS.TABLE_TYPES);
-    localStorage.removeItem(STORAGE_KEYS.CLUB_TABLES);
-    localStorage.removeItem(STORAGE_KEYS.BOOKINGS);
-    localStorage.removeItem(STORAGE_KEYS.GUESTLIST);
-    this.syncFromD1();
-  }
-
-  // Cloudflare D1 SQL Generator
-  public generateD1SqlDump(): string {
-    let sql = `-- =========================================================\n`;
-    sql += `-- CLOUDFLARE D1 SCHEMA & DUMP: club_booking_db\n`;
-    sql += `-- Generated: ${new Date().toISOString()}\n`;
-    sql += `-- =========================================================\n\n`;
-    sql += `PRAGMA foreign_keys = ON;\n\n`;
-
-    // 1. Users
-    sql += `-- 1. USERS (${this.users.length} rows)\n`;
-    this.users.forEach(u => {
-      sql += `INSERT OR REPLACE INTO users (id, name, email, password_hash, phone, role, created_at) VALUES ('${u.id}', '${(u.name || '').replace(/'/g, "''")}', '${(u.email || '').replace(/'/g, "''")}', '${u.password_hash || 'hash_secret'}', '${u.phone || ''}', '${u.role}', '${u.created_at}');\n`;
-    });
-    sql += `\n`;
-
-    // 2. Clubs
-    sql += `-- 2. CLUBS (${this.clubs.length} rows)\n`;
-    this.clubs.forEach(c => {
-      sql += `INSERT OR REPLACE INTO clubs (id, owner_id, name, slug, description, address, min_age, dress_code, is_active, created_at) VALUES ('${c.id}', '${c.owner_id}', '${(c.name || '').replace(/'/g, "''")}', '${(c.slug || '').replace(/'/g, "''")}', '${(c.description || '').replace(/'/g, "''")}', '${(c.address || '').replace(/'/g, "''")}', ${c.min_age || 18}, '${(c.dress_code || '').replace(/'/g, "''")}', ${c.is_active ?? 1}, '${c.created_at}');\n`;
-    });
-    sql += `\n`;
-
-    // 3. Table Types
-    sql += `-- 3. TABLE TYPES (${this.tableTypes.length} rows)\n`;
-    this.tableTypes.forEach(tt => {
-      sql += `INSERT OR REPLACE INTO table_types (id, club_id, name, description, min_spend_cents, deposit_cents, max_guests, is_active) VALUES ('${tt.id}', '${tt.club_id}', '${(tt.name || '').replace(/'/g, "''")}', '${(tt.description || '').replace(/'/g, "''")}', ${tt.min_spend_cents || 0}, ${tt.deposit_cents || 0}, ${tt.max_guests || 4}, ${tt.is_active ?? 1});\n`;
-    });
-    sql += `\n`;
-
-    // 4. Physical Club Tables
-    sql += `-- 4. PHYSICAL CLUB TABLES (${this.clubTables.length} rows)\n`;
-    this.clubTables.forEach(t => {
-      sql += `INSERT OR REPLACE INTO club_tables (id, club_id, table_type_id, table_number, location_description, is_active) VALUES ('${t.id}', '${t.club_id}', '${t.table_type_id}', '${(t.table_number || '').replace(/'/g, "''")}', '${(t.location_description || '').replace(/'/g, "''")}', ${t.is_active ?? 1});\n`;
-    });
-    sql += `\n`;
-
-    // 5. Bookings
-    sql += `-- 5. BOOKINGS (${this.bookings.length} rows)\n`;
-    this.bookings.forEach(b => {
-      sql += `INSERT OR REPLACE INTO bookings (id, club_id, table_id, user_id, booking_date, arrival_time, guest_count, min_spend_cents, deposit_paid_cents, status, special_requests, created_at) VALUES ('${b.id}', '${b.club_id}', '${b.table_id}', '${b.user_id}', '${b.booking_date}', '${b.arrival_time}', ${b.guest_count || 1}, ${b.min_spend_cents || 0}, ${b.deposit_paid_cents || 0}, '${b.status}', '${(b.special_requests || '').replace(/'/g, "''")}', '${b.created_at}');\n`;
-    });
-
-    return sql;
+  public resetToSeed(): void {
+    this.venues = SEED_VENUES;
+    this.tables = SEED_TABLES;
+    this.bookings = SEED_BOOKINGS;
+    this.guestlists = SEED_GUESTLISTS;
+    this.users = SEED_USERS;
+    this.ledgerTransactions = SEED_LEDGER_TRANSACTIONS;
+    this.ledgerPostings = SEED_LEDGER_POSTINGS;
+    this.currentUserId = 'usr_c01';
+    this.saveToLocalStorage();
   }
 }
 
-export const db = new AfterHoursDatabase();
+export const clientStore = new ClientDataStore();

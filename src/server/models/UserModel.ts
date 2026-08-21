@@ -1,52 +1,49 @@
 import { BaseModel } from './BaseModel';
-import { User, UserRole } from '../../types';
-
-export interface RawUserRow {
-  id: string;
-  name: string;
-  email: string;
-  password_hash?: string;
-  phone?: string | null;
-  role: UserRole;
-  created_at: string;
-}
+import { User } from '../../types';
 
 export class UserModel extends BaseModel {
-  async findAll(): Promise<RawUserRow[]> {
-    const { results } = await this.db
-      .prepare('SELECT id, name, email, phone, role, created_at FROM users ORDER BY created_at DESC')
-      .all<RawUserRow>();
-    return results || [];
+  async getAll(): Promise<User[]> {
+    const res = await this.db
+      .prepare('SELECT id, email, full_name, phone_number, role, promoter_code, is_active, created_at, updated_at FROM users WHERE is_active = 1 ORDER BY full_name ASC')
+      .all<User>();
+    return res.results || [];
   }
 
-  async findById(id: string): Promise<RawUserRow | null> {
-    const user = await this.db
-      .prepare('SELECT id, name, email, phone, role, created_at FROM users WHERE id = ?')
+  async getById(id: string): Promise<User | null> {
+    const res = await this.db
+      .prepare('SELECT id, email, full_name, phone_number, role, promoter_code, is_active, created_at, updated_at FROM users WHERE id = ?')
       .bind(id)
-      .first<RawUserRow>();
-    return user || null;
+      .first<User>();
+    return res;
   }
 
-  async create(data: Partial<User>): Promise<RawUserRow | null> {
-    const id = data.id || `usr_${Date.now().toString(36)}`;
-    const createdAt = BaseModel.getCurrentTimestamp();
+  async getByPromoterCode(code: string): Promise<User | null> {
+    const res = await this.db
+      .prepare('SELECT id, email, full_name, phone_number, role, promoter_code, is_active, created_at, updated_at FROM users WHERE promoter_code = ? AND is_active = 1')
+      .bind(code)
+      .first<User>();
+    return res;
+  }
 
-    await this.db
+  async insert(user: User): Promise<boolean> {
+    const res = await this.db
       .prepare(`
-        INSERT INTO users (id, name, email, password_hash, phone, role, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (
+          id, email, hashed_password, full_name, phone_number,
+          role, promoter_code, is_active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .bind(
-        id,
-        data.name || 'Anonymous User',
-        data.email,
-        data.password_hash || 'hash_secret',
-        data.phone || '',
-        data.role || 'user',
-        createdAt
+        user.id,
+        user.email,
+        user.hashed_password || '$2b$12$defaultHashedPwPlaceholder',
+        user.full_name,
+        user.phone_number,
+        user.role,
+        user.promoter_code || null,
+        user.is_active ?? 1
       )
       .run();
-
-    return this.findById(id);
+    return res.success;
   }
 }

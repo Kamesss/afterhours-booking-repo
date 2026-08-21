@@ -30,23 +30,26 @@ export class ApiResponseView {
     });
   }
 
+  static error(message = 'An error occurred', status = 400): Response {
+    return this.json({ error: message, success: false }, status);
+  }
+
   static badRequest(message = 'Invalid request parameters'): Response {
-    return this.json({ error: message, success: false }, 400);
+    return this.error(message, 400);
   }
 
   static notFound(message = 'Resource not found in D1 database'): Response {
-    return this.json({ error: message, success: false }, 404);
+    return this.error(message, 404);
   }
 
-  static conflict(message = 'Resource conflict or duplicate detected'): Response {
-    return this.json({ error: message, success: false }, 409);
-  }
-
-  static serverError(message = 'Internal server error', details?: unknown): Response {
-    return this.json({ error: message, details, success: false }, 500);
+  static serverError(message = 'Internal D1 database error'): Response {
+    return this.error(message, 500);
   }
 
   static preflight(): Response {
-    return new Response(null, { headers: CORS_HEADERS });
+    return new Response(null, {
+      status: 204,
+      headers: CORS_HEADERS,
+    });
   }
 }
