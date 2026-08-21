@@ -1,0 +1,12 @@
+{
+  "name": "afterhours-booking-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-21",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "club_booking_db",
+      "database_id": "ceb841b0-6066-4196-9bc2-b79e2ca2aaf3"
+    }
+  ]
+}
